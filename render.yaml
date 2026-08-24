@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: newspaper-business-api
+    runtime: python
+    rootDir: backend
+    buildCommand: ./build.sh
+    startCommand: gunicorn newspaper_app.wsgi:application
+    plan: free
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_ALLOWED_HOSTS
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: newspaper-db
+          property: connectionString
+
+databases:
+  - name: newspaper-db
+    plan: free
