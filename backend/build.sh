@@ -2,4 +2,4 @@
 set -o errexit
 
 python manage.py collectstatic --noinput
-python manage.py migrat
+python manage.py migrate
