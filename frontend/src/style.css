@@ -2,224 +2,603 @@
   box-sizing: border-box;
 }
 
-body {
+html,
+body,
+#root {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+}
+
+body {
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
   background: #f5f7fb;
   color: #18202a;
 }
 
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* =================================
+   APP
+================================= */
+
 .app {
-  display: flex;
   min-height: 100vh;
 }
 
-/* SIDEBAR */
+/* =================================
+   SIDEBAR
+================================= */
+
 aside {
+  position: fixed;
+
+  top: 0;
+  left: 0;
+  bottom: 0;
+
   width: 240px;
+
+  padding: 20px 12px;
+
   background: #111827;
   color: white;
-  padding: 20px 12px;
-  position: fixed;
-  inset: 0 auto 0 0;
-  z-index: 100;
+
+  z-index: 1000;
+
   overflow-y: auto;
 }
 
 .brand {
   font-size: 21px;
   font-weight: 800;
+
   padding: 10px 12px 25px;
 }
 
 aside button {
-  display: block;
+  display: flex;
+
+  align-items: center;
+
   width: 100%;
+
   border: 0;
-  background: none;
+
+  background: transparent;
+
   color: #cbd5e1;
+
   text-align: left;
-  padding: 12px;
+
+  padding: 13px 12px;
+
   border-radius: 8px;
+
   margin: 3px 0;
-  cursor: pointer;
+
   font-size: 14px;
+
+  transition:
+    background 0.2s,
+    color 0.2s;
 }
 
-aside button.active,
-aside button:hover {
+aside button:hover,
+aside button.active {
   background: #273449;
   color: white;
 }
 
-/* MAIN */
+.nav-icon {
+  width: 30px;
+  flex-shrink: 0;
+  font-size: 18px;
+}
+
+.nav-text {
+  white-space: nowrap;
+}
+
+/* =================================
+   MAIN
+================================= */
+
 main {
   margin-left: 240px;
+
   width: calc(100% - 240px);
+
+  min-height: 100vh;
+
   padding: 30px;
-  min-width: 0;
 }
+
+/* =================================
+   HEADER
+================================= */
 
 header {
   display: flex;
+
   justify-content: space-between;
+
   align-items: center;
+
+  gap: 20px;
+
   margin-bottom: 25px;
-  gap: 15px;
 }
 
 header h1 {
   margin: 0;
+
+  font-size: 28px;
+
   text-transform: capitalize;
 }
 
 header p {
   color: #6b7280;
-  margin-bottom: 0;
+
+  margin: 6px 0 0;
 }
 
-header button,
-.quick button {
-  padding: 10px 15px;
+.admin-button {
+  padding: 11px 17px;
+
   border: 1px solid #ddd;
+
   background: white;
+
   border-radius: 8px;
-  cursor: pointer;
+
+  white-space: nowrap;
+
+  font-size: 14px;
 }
 
-/* DASHBOARD */
+/* =================================
+   MOBILE HEADER
+================================= */
+
+.mobile-header {
+  display: none;
+}
+
+/* =================================
+   DASHBOARD CARDS
+================================= */
+
 .cards {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+
   gap: 16px;
 }
 
-.card,
-section {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 13px;
-  padding: 20px;
-}
-
 .card {
+  background: white;
+
+  border: 1px solid #e5e7eb;
+
+  border-radius: 13px;
+
+  padding: 20px;
+
   display: flex;
-  gap: 15px;
+
   align-items: center;
+
+  gap: 15px;
+
+  min-width: 0;
 }
 
-.card b {
-  font-size: 28px;
+.card-icon {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  width: 52px;
+  height: 52px;
+
   background: #f1f5f9;
-  padding: 10px;
+
   border-radius: 10px;
+
+  font-size: 27px;
+
+  flex-shrink: 0;
+}
+
+.card-content {
+  min-width: 0;
 }
 
 .card small {
+  display: block;
+
   color: #6b7280;
+
+  font-size: 13px;
 }
 
 .card h2 {
-  margin: 5px 0;
+  margin: 5px 0 0;
+
   font-size: 23px;
 }
 
-.quick {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-}
+/* =================================
+   SECTIONS
+================================= */
 
 section {
+  background: white;
+
+  border: 1px solid #e5e7eb;
+
+  border-radius: 13px;
+
+  padding: 20px;
+
   margin-top: 20px;
 }
 
+section h2 {
+  margin-top: 0;
+}
+
+.section-description {
+  color: #6b7280;
+
+  margin: 4px 0 0;
+
+  font-size: 14px;
+}
+
+/* =================================
+   HEAD
+================================= */
+
 .head {
   display: flex;
+
   justify-content: space-between;
+
   align-items: center;
-  gap: 10px;
+
+  gap: 15px;
+
+  margin-bottom: 18px;
 }
+
+.head h2 {
+  margin-bottom: 0;
+}
+
+/* =================================
+   BUTTONS
+================================= */
 
 .primary {
   background: #2563eb !important;
+
   color: white !important;
+
   border: 0 !important;
+
   cursor: pointer;
 }
 
-/* TABLE */
+.primary:hover {
+  opacity: 0.9;
+}
+
+/* =================================
+   QUICK ACTIONS
+================================= */
+
+.quick {
+  display: grid;
+
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+
+  gap: 12px;
+}
+
+.quick button {
+  padding: 13px 15px;
+
+  border: 1px solid #ddd;
+
+  background: white;
+
+  border-radius: 8px;
+
+  font-size: 14px;
+
+  min-height: 46px;
+}
+
+.quick button:hover {
+  background: #f8fafc;
+}
+
+/* =================================
+   TABLE
+================================= */
+
 .table-wrapper {
   width: 100%;
+
   overflow-x: auto;
+
   -webkit-overflow-scrolling: touch;
+
+  border-radius: 8px;
 }
 
 table {
   width: 100%;
-  border-collapse: collapse;
+
   min-width: 600px;
+
+  border-collapse: collapse;
 }
 
 th,
 td {
-  text-align: left;
   padding: 13px;
+
+  text-align: left;
+
   border-bottom: 1px solid #eee;
+
   white-space: nowrap;
+
+  font-size: 14px;
 }
 
-/* FORM */
+th {
+  color: #374151;
+
+  font-size: 13px;
+
+  background: #f8fafc;
+}
+
+/* =================================
+   STATUS
+================================= */
+
+.status-active {
+  display: inline-block;
+
+  padding: 5px 9px;
+
+  background: #dcfce7;
+
+  color: #166534;
+
+  border-radius: 20px;
+
+  font-size: 12px;
+
+  font-weight: 600;
+}
+
+.status-inactive {
+  display: inline-block;
+
+  padding: 5px 9px;
+
+  background: #fee2e2;
+
+  color: #991b1b;
+
+  border-radius: 20px;
+
+  font-size: 12px;
+
+  font-weight: 600;
+}
+
+/* =================================
+   FORM
+================================= */
+
+.form-section {
+  max-width: 750px;
+}
+
+.form-title {
+  margin-bottom: 20px;
+}
+
+.form-title h2 {
+  margin-bottom: 5px;
+}
+
+.form-title p {
+  color: #6b7280;
+
+  margin: 0;
+}
+
 .form {
   max-width: 650px;
-  width: 100%;
 }
 
 .form label {
   display: block;
-  text-transform: capitalize;
+
   font-size: 13px;
+
   font-weight: 600;
-  margin: 13px 0;
+
+  margin: 15px 0;
 }
 
 .form input,
 .form textarea,
 .form select {
   display: block;
+
   width: 100%;
-  padding: 11px;
-  border: 1px solid #ddd;
-  border-radius: 7px;
-  margin-top: 6px;
+
+  padding: 12px;
+
+  margin-top: 7px;
+
+  border: 1px solid #d1d5db;
+
+  border-radius: 8px;
+
   font-size: 15px;
+
+  background: white;
+
+  outline: none;
+}
+
+.form input:focus,
+.form textarea:focus,
+.form select:focus {
+  border-color: #2563eb;
+
+  box-shadow:
+    0 0 0 2px rgba(37, 99, 235, 0.1);
 }
 
 .form textarea {
-  min-height: 70px;
+  min-height: 90px;
+
   resize: vertical;
 }
 
-.empty {
-  text-align: center;
-  padding: 80px !important;
-  font-size: 18px;
+.form-buttons {
+  display: flex;
+
+  justify-content: flex-end;
+
+  gap: 10px;
+
+  margin-top: 20px;
 }
 
-.empty div {
+.form-buttons button {
+  padding: 12px 18px;
+
+  border: 1px solid #ddd;
+
+  background: white;
+
+  border-radius: 8px;
+}
+
+/* =================================
+   NO DATA
+================================= */
+
+.no-data {
+  text-align: center;
+
+  padding: 55px 20px;
+}
+
+.no-data > div {
   font-size: 45px;
 }
 
-/* TABLET */
-@media (max-width: 1000px) {
+.no-data h3 {
+  margin: 10px 0 5px;
+}
+
+.no-data p {
+  color: #6b7280;
+
+  margin-bottom: 20px;
+}
+
+/* =================================
+   EMPTY MODULE
+================================= */
+
+.empty {
+  text-align: center;
+
+  padding: 80px 20px !important;
+
+  font-size: 18px;
+}
+
+.empty > div {
+  font-size: 50px;
+
+  margin-bottom: 10px;
+}
+
+.empty p {
+  color: #6b7280;
+}
+
+.empty small {
+  color: #9ca3af;
+}
+
+/* =================================
+   MOBILE OVERLAY
+================================= */
+
+.mobile-overlay {
+  display: none;
+}
+
+/* =================================
+   MOBILE CLOSE
+================================= */
+
+.mobile-close-area {
+  display: none;
+}
+
+/* =================================
+   TABLET
+================================= */
+
+@media (max-width: 1050px) {
   aside {
-    width: 200px;
+    width: 210px;
   }
 
   main {
-    margin-left: 200px;
-    width: calc(100% - 200px);
-    padding: 20px;
+    margin-left: 210px;
+
+    width: calc(100% - 210px);
+
+    padding: 22px;
   }
 
   .cards {
@@ -231,145 +610,346 @@ td {
   }
 }
 
-/* MOBILE */
+/* =================================
+   MOBILE
+================================= */
+
 @media (max-width: 700px) {
-  .app {
-    display: block;
+
+  /* MOBILE TOP BAR */
+
+  .mobile-header {
+    position: sticky;
+
+    top: 0;
+
+    left: 0;
+
+    width: 100%;
+
+    height: 62px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    padding: 0 14px;
+
+    background: white;
+
+    border-bottom: 1px solid #e5e7eb;
+
+    z-index: 900;
   }
+
+  .mobile-header strong {
+    font-size: 17px;
+  }
+
+  .menu-button {
+    width: 42px;
+
+    height: 42px;
+
+    border: 0;
+
+    border-radius: 9px;
+
+    background: #111827;
+
+    color: white;
+
+    font-size: 20px;
+  }
+
+  .mobile-spacer {
+    width: 42px;
+  }
+
+  /* SIDEBAR */
 
   aside {
     position: fixed;
-    left: 0;
-    right: 0;
-    top: auto;
+
+    top: 0;
+
+    left: -280px;
+
     bottom: 0;
-    width: 100%;
-    height: 68px;
-    padding: 5px;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 3px;
-    overflow-x: auto;
-    overflow-y: hidden;
+
+    width: 270px;
+
+    padding: 20px 15px;
+
+    transition: left 0.25s ease;
+
+    box-shadow:
+      8px 0 25px rgba(0, 0, 0, 0.15);
+
+    z-index: 1100;
+  }
+
+  aside.mobile-open {
+    left: 0;
   }
 
   .brand {
-    display: none;
+    font-size: 20px;
+
+    padding: 10px 12px 25px;
   }
 
   aside button {
-    width: 70px;
-    min-width: 70px;
-    height: 58px;
-    margin: 0;
-    padding: 6px 3px;
-    text-align: center;
-    font-size: 11px;
+    padding: 14px 12px;
+
+    font-size: 15px;
   }
 
-  aside button span {
-    display: block;
-    margin-top: 3px;
-    white-space: normal;
+  .nav-icon {
+    width: 35px;
+
+    font-size: 19px;
   }
+
+  /* CLOSE BUTTON */
+
+  .mobile-close-area {
+    display: flex;
+
+    justify-content: flex-end;
+
+    margin-bottom: 5px;
+  }
+
+  .mobile-close {
+    width: 35px !important;
+
+    height: 35px;
+
+    justify-content: center;
+
+    padding: 0 !important;
+
+    background: #273449 !important;
+
+    border-radius: 8px !important;
+
+    font-size: 16px !important;
+  }
+
+  /* OVERLAY */
+
+  .mobile-overlay {
+    display: block;
+
+    position: fixed;
+
+    inset: 0;
+
+    background: rgba(0, 0, 0, 0.45);
+
+    z-index: 1050;
+  }
+
+  /* MAIN */
 
   main {
     margin-left: 0;
+
     width: 100%;
-    padding: 15px;
-    padding-bottom: 90px;
+
+    padding: 0 14px 30px;
   }
 
-  header {
-    align-items: flex-start;
-    flex-direction: column;
-    margin-bottom: 18px;
+  /* PAGE HEADER */
+
+  main > header {
+    display: block;
+
+    margin: 20px 0;
   }
 
   header h1 {
-    font-size: 24px;
+    font-size: 23px;
   }
 
   header p {
-    margin: 5px 0;
+    font-size: 14px;
   }
 
-  header button {
+  .admin-button {
     width: 100%;
+
+    margin-top: 14px;
+
+    padding: 13px;
   }
+
+  /* CARDS */
 
   .cards {
     grid-template-columns: 1fr 1fr;
+
     gap: 10px;
   }
 
   .card {
     padding: 14px;
-    gap: 10px;
+
+    gap: 9px;
+
+    border-radius: 10px;
   }
 
-  .card b {
-    font-size: 22px;
-    padding: 7px;
+  .card-icon {
+    width: 40px;
+
+    height: 40px;
+
+    font-size: 20px;
+  }
+
+  .card small {
+    font-size: 11px;
   }
 
   .card h2 {
-    font-size: 19px;
+    font-size: 18px;
   }
 
-  .quick {
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
+  /* SECTION */
 
   section {
     padding: 15px;
-    overflow: hidden;
+
+    margin-top: 15px;
+
+    border-radius: 10px;
   }
 
+  /* QUICK ACTIONS */
+
+  .quick {
+    grid-template-columns: 1fr 1fr;
+
+    gap: 9px;
+  }
+
+  .quick button {
+    min-height: 52px;
+
+    padding: 10px 5px;
+
+    font-size: 13px;
+  }
+
+  /* SECTION HEAD */
+
   .head {
-    align-items: flex-start;
     flex-direction: column;
+
+    align-items: stretch;
+
+    gap: 12px;
   }
 
   .head button {
     width: 100%;
+
+    padding: 12px;
+  }
+
+  /* FORM */
+
+  .form-section {
+    max-width: 100%;
   }
 
   .form {
     max-width: 100%;
   }
-}
 
-/* SMALL PHONES */
-@media (max-width: 450px) {
-  .cards {
-    grid-template-columns: 1fr;
+  .form input,
+  .form textarea,
+  .form select {
+    font-size: 16px;
+
+    padding: 13px;
   }
 
-  .quick {
-    grid-template-columns: 1fr;
+  .form-buttons {
+    flex-direction: column;
+  }
+
+  .form-buttons button {
+    width: 100%;
+
+    padding: 13px;
+  }
+
+  /* TABLE */
+
+  .table-wrapper {
+    margin-top: 10px;
+
+    overflow-x: auto;
+  }
+
+  table {
+    min-width: 600px;
+  }
+
+  th,
+  td {
+    padding: 11px;
+
+    font-size: 13px;
+  }
+
+  /* EMPTY */
+
+  .empty {
+    padding: 55px 15px !important;
+  }
+}
+
+/* =================================
+   SMALL PHONES
+================================= */
+
+@media (max-width: 430px) {
+
+  .mobile-header {
+    height: 58px;
+  }
+
+  .mobile-header strong {
+    font-size: 16px;
   }
 
   header h1 {
     font-size: 21px;
   }
 
+  .cards {
+    grid-template-columns: 1fr;
+  }
+
+  .quick {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .card {
-    min-height: 75px;
+    min-height: 70px;
   }
 
   section {
-    margin-top: 15px;
-    border-radius: 10px;
+    padding: 13px;
   }
 
-  .empty {
-    padding: 50px 15px !important;
-  }
-
-  table {
-    min-width: 550px;
+  .no-data {
+    padding: 45px 10px;
   }
 }

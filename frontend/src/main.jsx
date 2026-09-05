@@ -6,123 +6,156 @@ const API = "https://newspaper-business-api.onrender.com/api";
 
 function App() {
   const [page, setPage] = useState("dashboard");
-  const [dashboard, setDashboard] = useState(null);
-  const [customers, setCustomers] = useState([]);
-  const [newspapers, setNewspapers] = useState([]);
-  const [editingNewspaper, setEditingNewspaper] = useState(null);
+  const [d, setD] = useState(null);
+  const [customers, setC] = useState([]);
+  const [newspapers, setN] = useState([]);
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  const loadData = async () => {
+  const load = async () => {
     try {
       const [dashboardRes, customersRes, newspapersRes] =
         await Promise.all([
-          fetch(`${API}/dashboard/`),
-          fetch(`${API}/customers/`),
-          fetch(`${API}/newspapers/`),
+          fetch(API + "/dashboard/"),
+          fetch(API + "/customers/"),
+          fetch(API + "/newspapers/"),
         ]);
 
-      setDashboard(await dashboardRes.json());
-      setCustomers(await customersRes.json());
-      setNewspapers(await newspapersRes.json());
+      const dashboard = await dashboardRes.json();
+      const customerData = await customersRes.json();
+      const newspaperData = await newspapersRes.json();
+
+      setD(dashboard);
+      setC(customerData);
+      setN(newspaperData);
     } catch (error) {
-      console.error("API Error:", error);
+      console.log("API Error:", error);
     }
   };
 
   useEffect(() => {
-    loadData();
+    load();
   }, []);
 
-  const saveNewspaper = async (e) => {
+  const changePage = (newPage) => {
+    setPage(newPage);
+    setMenuOpen(false);
+  };
+
+  const addCustomer = async (e) => {
     e.preventDefault();
 
-    const form = new FormData(e.target);
+    const formData = new FormData(e.target);
+    const data = Object.fromEntries(formData);
 
-    const data = {
-      name: form.get("name"),
-      language: form.get("language"),
-      edition: form.get("edition"),
-      daily_price: form.get("daily_price"),
-      active: form.get("active") === "on",
-    };
+    data.active = true;
 
-    const url = editingNewspaper
-      ? `${API}/newspapers/${editingNewspaper.id}/`
-      : `${API}/newspapers/`;
+    if (!data.start_date) {
+      data.start_date = new Date()
+        .toISOString()
+        .slice(0, 10);
+    }
 
-    const method = editingNewspaper ? "PUT" : "POST";
+    try {
+      const response = await fetch(API + "/customers/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
 
-    const response = await fetch(url, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    });
-
-    if (response.ok) {
-      await loadData();
-      setEditingNewspaper(null);
-      setPage("newspapers");
-    } else {
-      alert("Could not save newspaper.");
+      if (response.ok) {
+        e.target.reset();
+        await load();
+        setPage("customers");
+        setMenuOpen(false);
+      } else {
+        const errorData = await response.json();
+        console.log(errorData);
+        alert("Unable to add customer.");
+      }
+    } catch (error) {
+      console.log(error);
+      alert("Unable to connect to server.");
     }
   };
 
-  const editNewspaper = (newspaper) => {
-    setEditingNewspaper(newspaper);
-    setPage("add-newspaper");
-  };
-
-  const toggleNewspaper = async (newspaper) => {
-    await fetch(`${API}/newspapers/${newspaper.id}/`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        active: !newspaper.active,
-      }),
-    });
-
-    loadData();
-  };
-
-  const NavItem = ({ id, icon, label }) => (
-    <button
-      className={`nav-item ${page === id ? "active" : ""}`}
-      onClick={() => setPage(id)}
-    >
-      <span>{icon}</span>
-      {label}
-    </button>
-  );
+  const nav = [
+    ["dashboard", "🏠", "Dashboard"],
+    ["customers", "👥", "Customers"],
+    ["newspapers", "📰", "Newspapers"],
+    ["subscriptions", "📦", "Subscriptions"],
+    ["delivery", "🚚", "Today's Delivery"],
+    ["billing", "🧾", "Billing"],
+    ["payments", "💰", "Payments"],
+    ["reports", "📊", "Reports"],
+  ];
 
   return (
     <div className="app">
 
+      {/* MOBILE TOP BAR */}
+      <div className="mobile-header">
+        <button
+          className="menu-button"
+          onClick={() => setMenuOpen(!menuOpen)}
+        >
+          {menuOpen ? "✕" : "☰"}
+        </button>
+
+        <strong>📰 NewsPaper</strong>
+
+        <div className="mobile-spacer"></div>
+      </div>
+
+      {/* MOBILE OVERLAY */}
+      {menuOpen && (
+        <div
+          className="mobile-overlay"
+          onClick={() => setMenuOpen(false)}
+        ></div>
+      )}
+
       {/* SIDEBAR */}
-      <aside className="sidebar">
+      <aside className={menuOpen ? "mobile-open" : ""}>
 
         <div className="brand">
-          📰 <span>NewsPaper</span>
+          📰 NewsPaper
         </div>
 
-        <NavItem id="dashboard" icon="🏠" label="Dashboard" />
-        <NavItem id="customers" icon="👥" label="Customers" />
-        <NavItem id="newspapers" icon="📰" label="Newspapers" />
-        <NavItem id="subscriptions" icon="📦" label="Subscriptions" />
-        <NavItem id="delivery" icon="🚚" label="Today's Delivery" />
-        <NavItem id="billing" icon="🧾" label="Billing" />
-        <NavItem id="payments" icon="💰" label="Payments" />
-        <NavItem id="reports" icon="📊" label="Reports" />
+        <div className="mobile-close-area">
+          <button
+            className="mobile-close"
+            onClick={() => setMenuOpen(false)}
+          >
+            ✕
+          </button>
+        </div>
 
+        {nav.map((item) => (
+          <button
+            key={item[0]}
+            className={
+              page === item[0] ? "active" : ""
+            }
+            onClick={() => changePage(item[0])}
+          >
+            <span className="nav-icon">
+              {item[1]}
+            </span>
+
+            <span className="nav-text">
+              {item[2]}
+            </span>
+          </button>
+        ))}
       </aside>
 
-      {/* MAIN */}
-      <main className="main">
+      {/* MAIN CONTENT */}
+      <main>
 
-        <header className="topbar">
-
+        {/* PAGE HEADER */}
+        <header>
           <div>
             <h1>
               {page === "dashboard"
@@ -136,107 +169,128 @@ function App() {
           </div>
 
           <button
-            className="admin-btn"
+            className="admin-button"
             onClick={() =>
               window.open(
-                "http://127.0.0.1:8000/admin/",
+                "https://newspaper-business-api.onrender.com/admin/",
                 "_blank"
               )
             }
           >
             ⚙ Admin
           </button>
-
         </header>
 
-
-        {/* DASHBOARD */}
+        {/* =========================
+            DASHBOARD
+        ========================= */}
 
         {page === "dashboard" && (
           <>
-            <section className="cards">
+            <div className="cards">
 
               <Card
                 icon="👥"
                 title="Active Customers"
-                value={dashboard?.active_customers || 0}
+                value={d?.active_customers || 0}
               />
 
               <Card
                 icon="📰"
                 title="Subscriptions"
-                value={dashboard?.active_subscriptions || 0}
+                value={d?.active_subscriptions || 0}
               />
 
               <Card
                 icon="💰"
                 title="Today's Collection"
-                value={`₹${dashboard?.today_collection || 0}`}
+                value={
+                  "₹" +
+                  (d?.today_collection || 0)
+                }
               />
 
               <Card
                 icon="🔴"
                 title="Pending Amount"
-                value={`₹${dashboard?.total_pending || 0}`}
+                value={
+                  "₹" +
+                  (d?.total_pending || 0)
+                }
               />
 
-            </section>
+            </div>
 
-            <section className="quick">
-
+            <section>
               <h2>Quick Actions</h2>
 
-              <div className="quick-grid">
+              <div className="quick">
 
-                <button onClick={() => setPage("add-customer")}>
+                <button
+                  onClick={() => changePage("add")}
+                >
                   ➕ Add Customer
                 </button>
 
-                <button onClick={() => setPage("customers")}>
+                <button
+                  onClick={() =>
+                    changePage("customers")
+                  }
+                >
                   👥 Customers
                 </button>
 
-                <button onClick={() => setPage("newspapers")}>
-                  📰 Newspapers
+                <button
+                  onClick={() =>
+                    changePage("delivery")
+                  }
+                >
+                  🚚 Delivery
                 </button>
 
-                <button onClick={() => setPage("payments")}>
+                <button
+                  onClick={() =>
+                    changePage("payments")
+                  }
+                >
                   💰 Payment
                 </button>
 
               </div>
-
             </section>
           </>
         )}
 
-
-        {/* CUSTOMERS */}
+        {/* =========================
+            CUSTOMERS
+        ========================= */}
 
         {page === "customers" && (
-          <section className="panel">
+          <section>
 
-            <div className="panel-head">
+            <div className="head">
 
               <div>
-                <h2>👥 Customers</h2>
-                <p>Manage your newspaper customers.</p>
+                <h2>Customers</h2>
+
+                <p className="section-description">
+                  Manage your newspaper customers.
+                </p>
               </div>
 
               <button
                 className="primary"
-                onClick={() => setPage("add-customer")}
+                onClick={() =>
+                  changePage("add")
+                }
               >
                 + Add Customer
               </button>
 
             </div>
 
-            {customers.length === 0 ? (
-              <p>No customers yet.</p>
-            ) : (
-
-              <div className="table-wrap">
+            {customers.length > 0 ? (
+              <div className="table-wrapper">
 
                 <table>
 
@@ -245,7 +299,6 @@ function App() {
                       <th>Name</th>
                       <th>Mobile</th>
                       <th>Area</th>
-                      <th>Start Date</th>
                       <th>Status</th>
                     </tr>
                   </thead>
@@ -253,11 +306,10 @@ function App() {
                   <tbody>
 
                     {customers.map((customer) => (
-
                       <tr key={customer.id}>
 
                         <td>
-                          <strong>{customer.name}</strong>
+                          {customer.name}
                         </td>
 
                         <td>
@@ -269,17 +321,20 @@ function App() {
                         </td>
 
                         <td>
-                          {customer.start_date}
-                        </td>
-
-                        <td>
-                          {customer.active
-                            ? "Active"
-                            : "Inactive"}
+                          <span
+                            className={
+                              customer.active
+                                ? "status-active"
+                                : "status-inactive"
+                            }
+                          >
+                            {customer.active
+                              ? "Active"
+                              : "Inactive"}
+                          </span>
                         </td>
 
                       </tr>
-
                     ))}
 
                   </tbody>
@@ -287,92 +342,181 @@ function App() {
                 </table>
 
               </div>
+            ) : (
+              <div className="no-data">
+                <div>👥</div>
+                <h3>No customers yet</h3>
+                <p>
+                  Add your first customer to get started.
+                </p>
 
+                <button
+                  className="primary"
+                  onClick={() =>
+                    changePage("add")
+                  }
+                >
+                  + Add Customer
+                </button>
+              </div>
             )}
 
           </section>
         )}
 
+        {/* =========================
+            ADD CUSTOMER
+        ========================= */}
 
-        {/* NEWSPAPERS */}
+        {page === "add" && (
+          <section className="form-section">
+
+            <div className="form-title">
+              <h2>Add Customer</h2>
+
+              <p>
+                Enter customer information below.
+              </p>
+            </div>
+
+            <form
+              className="form"
+              onSubmit={addCustomer}
+            >
+
+              <label>
+                Name *
+                <input
+                  name="name"
+                  type="text"
+                  placeholder="Customer name"
+                  required
+                />
+              </label>
+
+              <label>
+                Mobile
+                <input
+                  name="mobile"
+                  type="tel"
+                  placeholder="Mobile number"
+                />
+              </label>
+
+              <label>
+                Area
+                <input
+                  name="area"
+                  type="text"
+                  placeholder="Area / locality"
+                />
+              </label>
+
+              <label>
+                Address
+                <textarea
+                  name="address"
+                  placeholder="Complete address"
+                />
+              </label>
+
+              <label>
+                Start Date
+                <input
+                  name="start_date"
+                  type="date"
+                />
+              </label>
+
+              <label>
+                Notes
+                <textarea
+                  name="notes"
+                  placeholder="Additional notes"
+                />
+              </label>
+
+              <div className="form-buttons">
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    changePage("customers")
+                  }
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="primary"
+                >
+                  Save Customer
+                </button>
+
+              </div>
+
+            </form>
+
+          </section>
+        )}
+
+        {/* =========================
+            NEWSPAPERS
+        ========================= */}
 
         {page === "newspapers" && (
+          <section>
 
-          <section className="panel">
-
-            <div className="panel-head">
+            <div className="head">
 
               <div>
                 <h2>📰 Newspapers</h2>
 
-                <p>
-                  Manage newspapers, editions and prices.
+                <p className="section-description">
+                  Manage newspapers available for delivery.
                 </p>
               </div>
 
               <button
                 className="primary"
-                onClick={() => {
-                  setEditingNewspaper(null);
-                  setPage("add-newspaper");
-                }}
+                onClick={() =>
+                  window.open(
+                    "https://newspaper-business-api.onrender.com/admin/",
+                    "_blank"
+                  )
+                }
               >
-                + Add Newspaper
+                + Manage
               </button>
 
             </div>
 
-
-            {newspapers.length === 0 ? (
-
-              <div className="empty">
-                <div>📰</div>
-
-                <h3>No newspapers yet</h3>
-
-                <p>
-                  Add your first newspaper to get started.
-                </p>
-
-                <button
-                  className="primary"
-                  onClick={() => setPage("add-newspaper")}
-                >
-                  + Add Newspaper
-                </button>
-
-              </div>
-
-            ) : (
-
-              <div className="table-wrap">
+            {newspapers.length > 0 ? (
+              <div className="table-wrapper">
 
                 <table>
 
                   <thead>
-
                     <tr>
                       <th>Name</th>
+                      <th>Price</th>
                       <th>Language</th>
                       <th>Edition</th>
-                      <th>Daily Price</th>
-                      <th>Status</th>
-                      <th>Actions</th>
                     </tr>
-
                   </thead>
-
 
                   <tbody>
 
                     {newspapers.map((newspaper) => (
-
                       <tr key={newspaper.id}>
 
                         <td>
-                          <strong>
-                            {newspaper.name}
-                          </strong>
+                          {newspaper.name}
+                        </td>
+
+                        <td>
+                          ₹{newspaper.daily_price}
                         </td>
 
                         <td>
@@ -383,52 +527,7 @@ function App() {
                           {newspaper.edition || "-"}
                         </td>
 
-                        <td>
-                          ₹{newspaper.daily_price}
-                        </td>
-
-                        <td>
-
-                          <span
-                            className={
-                              newspaper.active
-                                ? "badge green"
-                                : "badge red"
-                            }
-                          >
-                            {newspaper.active
-                              ? "Active"
-                              : "Inactive"}
-                          </span>
-
-                        </td>
-
-                        <td>
-
-                          <button
-                            className="action-btn"
-                            onClick={() =>
-                              editNewspaper(newspaper)
-                            }
-                          >
-                            ✏️ Edit
-                          </button>
-
-                          <button
-                            className="action-btn"
-                            onClick={() =>
-                              toggleNewspaper(newspaper)
-                            }
-                          >
-                            {newspaper.active
-                              ? "🔴 Disable"
-                              : "🟢 Enable"}
-                          </button>
-
-                        </td>
-
                       </tr>
-
                     ))}
 
                   </tbody>
@@ -436,150 +535,38 @@ function App() {
                 </table>
 
               </div>
+            ) : (
+              <div className="no-data">
 
+                <div>📰</div>
+
+                <h3>No newspapers yet</h3>
+
+                <p>
+                  Add newspapers from the Admin panel.
+                </p>
+
+                <button
+                  className="primary"
+                  onClick={() =>
+                    window.open(
+                      "https://newspaper-business-api.onrender.com/admin/",
+                      "_blank"
+                    )
+                  }
+                >
+                  Open Admin
+                </button>
+
+              </div>
             )}
 
           </section>
-
         )}
 
-
-        {/* ADD / EDIT NEWSPAPER */}
-
-        {page === "add-newspaper" && (
-
-          <section className="panel form-panel">
-
-            <div className="panel-head">
-
-              <div>
-
-                <h2>
-                  {editingNewspaper
-                    ? "✏️ Edit Newspaper"
-                    : "📰 Add Newspaper"}
-                </h2>
-
-                <p>
-                  Enter newspaper details below.
-                </p>
-
-              </div>
-
-            </div>
-
-
-            <form onSubmit={saveNewspaper}>
-
-              <label>
-                Newspaper Name
-
-                <input
-                  name="name"
-                  required
-                  defaultValue={
-                    editingNewspaper?.name || ""
-                  }
-                  placeholder="Gujarat Samachar"
-                />
-
-              </label>
-
-
-              <label>
-                Language
-
-                <input
-                  name="language"
-                  defaultValue={
-                    editingNewspaper?.language || ""
-                  }
-                  placeholder="Gujarati"
-                />
-
-              </label>
-
-
-              <label>
-                Edition
-
-                <input
-                  name="edition"
-                  defaultValue={
-                    editingNewspaper?.edition || ""
-                  }
-                  placeholder="Ahmedabad"
-                />
-
-              </label>
-
-
-              <label>
-                Daily Price
-
-                <input
-                  name="daily_price"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  required
-                  defaultValue={
-                    editingNewspaper?.daily_price || ""
-                  }
-                  placeholder="5"
-                />
-
-              </label>
-
-
-              <label className="checkbox-label">
-
-                <input
-                  name="active"
-                  type="checkbox"
-                  defaultChecked={
-                    editingNewspaper
-                      ? editingNewspaper.active
-                      : true
-                  }
-                />
-
-                Active Newspaper
-
-              </label>
-
-
-              <div className="form-actions">
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingNewspaper(null);
-                    setPage("newspapers");
-                  }}
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  className="primary"
-                >
-                  {editingNewspaper
-                    ? "Update Newspaper"
-                    : "Save Newspaper"}
-                </button>
-
-              </div>
-
-            </form>
-
-          </section>
-
-        )}
-
-
-        {/* OTHER MODULES */}
+        {/* =========================
+            FUTURE MODULES
+        ========================= */}
 
         {[
           "subscriptions",
@@ -588,55 +575,56 @@ function App() {
           "payments",
           "reports",
         ].includes(page) && (
+          <section className="empty">
 
-          <section className="panel coming">
-
-            <div className="big-icon">
-              🚧
-            </div>
+            <div>🚧</div>
 
             <h2>
-              {page.replace("-", " ")}
+              {page === "delivery"
+                ? "Today's Delivery"
+                : page.charAt(0).toUpperCase() +
+                  page.slice(1)}
             </h2>
 
             <p>
               This module is coming next.
             </p>
 
-          </section>
+            <small>
+              The backend foundation is ready.
+            </small>
 
+          </section>
         )}
 
       </main>
-
     </div>
   );
 }
 
+/* =========================
+   CARD COMPONENT
+========================= */
 
 function Card({ icon, title, value }) {
-
   return (
-
     <div className="card">
 
       <div className="card-icon">
         {icon}
       </div>
 
-      <div>
+      <div className="card-content">
 
-        <p>{title}</p>
+        <small>{title}</small>
 
         <h2>{value}</h2>
 
       </div>
 
     </div>
-
   );
 }
-
 
 createRoot(
   document.getElementById("root")
