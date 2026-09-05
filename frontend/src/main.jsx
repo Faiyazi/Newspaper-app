@@ -10,7 +10,10 @@ function App() {
   const [customers, setC] = useState([]);
   const [newspapers, setN] = useState([]);
   const [subscriptions, setS] = useState([]);
+  const [deliveries, setDeliveries] = useState([]);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [loadingDeliveries, setLoadingDeliveries] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   const load = async () => {
     try {
@@ -35,9 +38,38 @@ function App() {
     }
   };
 
+  const loadDeliveries = async () => {
+    setLoadingDeliveries(true);
+
+    try {
+      const response = await fetch(
+        API + "/deliveries/today/"
+      );
+
+      if (!response.ok) {
+        throw new Error("Unable to load deliveries");
+      }
+
+      const data = await response.json();
+
+      setDeliveries(data);
+    } catch (error) {
+      console.log("Delivery API Error:", error);
+      alert("Unable to load today's deliveries.");
+    } finally {
+      setLoadingDeliveries(false);
+    }
+  };
+
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    if (page === "delivery") {
+      loadDeliveries();
+    }
+  }, [page]);
 
   const changePage = (newPage) => {
     setPage(newPage);
@@ -47,7 +79,9 @@ function App() {
   const addCustomer = async (e) => {
     e.preventDefault();
 
-    const data = Object.fromEntries(new FormData(e.target));
+    const data = Object.fromEntries(
+      new FormData(e.target)
+    );
 
     data.active = true;
 
@@ -58,13 +92,16 @@ function App() {
     }
 
     try {
-      const response = await fetch(API + "/customers/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
+      const response = await fetch(
+        API + "/customers/",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+        }
+      );
 
       if (response.ok) {
         e.target.reset();
@@ -81,7 +118,9 @@ function App() {
   const addSubscription = async (e) => {
     e.preventDefault();
 
-    const data = Object.fromEntries(new FormData(e.target));
+    const data = Object.fromEntries(
+      new FormData(e.target)
+    );
 
     data.customer = Number(data.customer);
     data.newspaper = Number(data.newspaper);
@@ -119,6 +158,82 @@ function App() {
     }
   };
 
+  const generateDeliveries = async () => {
+    setGenerating(true);
+
+    try {
+      const response = await fetch(
+        API + "/deliveries/generate-today/",
+        {
+          method: "POST",
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.log(data);
+        alert("Unable to generate deliveries.");
+        return;
+      }
+
+      alert(
+        `${data.created} delivery record(s) created.`
+      );
+
+      await loadDeliveries();
+      await load();
+    } catch (error) {
+      console.log(error);
+      alert("Unable to connect to server.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const updateDeliveryStatus = async (
+    deliveryId,
+    status
+  ) => {
+    try {
+      const response = await fetch(
+        API + `/deliveries/${deliveryId}/`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            status: status,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.log(error);
+        alert("Unable to update delivery.");
+        return;
+      }
+
+      setDeliveries((current) =>
+        current.map((delivery) =>
+          delivery.id === deliveryId
+            ? {
+                ...delivery,
+                status: status,
+              }
+            : delivery
+        )
+      );
+
+      await load();
+    } catch (error) {
+      console.log(error);
+      alert("Unable to connect to server.");
+    }
+  };
+
   const nav = [
     ["dashboard", "🏠", "Dashboard"],
     ["customers", "👥", "Customers"],
@@ -130,10 +245,20 @@ function App() {
     ["reports", "📊", "Reports"],
   ];
 
+  const getStatusLabel = (status) => {
+    const labels = {
+      delivered: "Delivered",
+      not_delivered: "Not Delivered",
+      paused: "Paused",
+      holiday: "Holiday",
+    };
+
+    return labels[status] || status;
+  };
+
   return (
     <div className="app">
 
-      {/* MOBILE HEADER */}
       <div className="mobile-header">
 
         <button
@@ -151,15 +276,15 @@ function App() {
 
       </div>
 
-      {/* MOBILE OVERLAY */}
       {menuOpen && (
         <div
           className="mobile-overlay"
-          onClick={() => setMenuOpen(false)}
+          onClick={() =>
+            setMenuOpen(false)
+          }
         ></div>
       )}
 
-      {/* SIDEBAR */}
       <aside
         className={
           menuOpen ? "mobile-open" : ""
@@ -207,10 +332,8 @@ function App() {
 
       </aside>
 
-      {/* MAIN */}
       <main>
 
-        {/* HEADER */}
         <header>
 
           <div>
@@ -220,6 +343,10 @@ function App() {
                 ? "Good Evening 👋"
                 : page === "delivery"
                 ? "Today's Delivery"
+                : page === "add"
+                ? "Add Customer"
+                : page === "add-subscription"
+                ? "Add Subscription"
                 : page.replace("-", " ")}
             </h1>
 
@@ -242,10 +369,6 @@ function App() {
           </button>
 
         </header>
-
-        {/* =========================
-            DASHBOARD
-        ========================= */}
 
         {page === "dashboard" && (
           <>
@@ -319,10 +442,10 @@ function App() {
 
                 <button
                   onClick={() =>
-                    changePage("payments")
+                    changePage("delivery")
                   }
                 >
-                  💰 Payment
+                  🚚 Today's Delivery
                 </button>
 
               </div>
@@ -330,10 +453,6 @@ function App() {
             </section>
           </>
         )}
-
-        {/* =========================
-            CUSTOMERS
-        ========================= */}
 
         {page === "customers" && (
           <section>
@@ -368,53 +487,55 @@ function App() {
                 <table>
 
                   <thead>
-
                     <tr>
                       <th>Name</th>
                       <th>Mobile</th>
                       <th>Area</th>
                       <th>Status</th>
                     </tr>
-
                   </thead>
 
                   <tbody>
 
-                    {customers.map((customer) => (
+                    {customers.map(
+                      (customer) => (
 
-                      <tr key={customer.id}>
+                        <tr
+                          key={customer.id}
+                        >
 
-                        <td>
-                          {customer.name}
-                        </td>
+                          <td>
+                            {customer.name}
+                          </td>
 
-                        <td>
-                          {customer.mobile || "-"}
-                        </td>
+                          <td>
+                            {customer.mobile || "-"}
+                          </td>
 
-                        <td>
-                          {customer.area || "-"}
-                        </td>
+                          <td>
+                            {customer.area || "-"}
+                          </td>
 
-                        <td>
+                          <td>
 
-                          <span
-                            className={
-                              customer.active
-                                ? "status-active"
-                                : "status-inactive"
-                            }
-                          >
-                            {customer.active
-                              ? "Active"
-                              : "Inactive"}
-                          </span>
+                            <span
+                              className={
+                                customer.active
+                                  ? "status-active"
+                                  : "status-inactive"
+                              }
+                            >
+                              {customer.active
+                                ? "Active"
+                                : "Inactive"}
+                            </span>
 
-                        </td>
+                          </td>
 
-                      </tr>
+                        </tr>
 
-                    ))}
+                      )
+                    )}
 
                   </tbody>
 
@@ -451,10 +572,6 @@ function App() {
 
           </section>
         )}
-
-        {/* =========================
-            ADD CUSTOMER
-        ========================= */}
 
         {page === "add" && (
           <section className="form-section">
@@ -563,10 +680,6 @@ function App() {
           </section>
         )}
 
-        {/* =========================
-            NEWSPAPERS
-        ========================= */}
-
         {page === "newspapers" && (
           <section>
 
@@ -617,29 +730,33 @@ function App() {
 
                   <tbody>
 
-                    {newspapers.map((newspaper) => (
+                    {newspapers.map(
+                      (newspaper) => (
 
-                      <tr key={newspaper.id}>
+                        <tr
+                          key={newspaper.id}
+                        >
 
-                        <td>
-                          {newspaper.name}
-                        </td>
+                          <td>
+                            {newspaper.name}
+                          </td>
 
-                        <td>
-                          ₹{newspaper.daily_price}
-                        </td>
+                          <td>
+                            ₹{newspaper.daily_price}
+                          </td>
 
-                        <td>
-                          {newspaper.language || "-"}
-                        </td>
+                          <td>
+                            {newspaper.language || "-"}
+                          </td>
 
-                        <td>
-                          {newspaper.edition || "-"}
-                        </td>
+                          <td>
+                            {newspaper.edition || "-"}
+                          </td>
 
-                      </tr>
+                        </tr>
 
-                    ))}
+                      )
+                    )}
 
                   </tbody>
 
@@ -680,10 +797,6 @@ function App() {
           </section>
         )}
 
-        {/* =========================
-            SUBSCRIPTIONS
-        ========================= */}
-
         {page === "subscriptions" && (
           <section>
 
@@ -704,7 +817,9 @@ function App() {
               <button
                 className="primary"
                 onClick={() =>
-                  changePage("add-subscription")
+                  changePage(
+                    "add-subscription"
+                  )
                 }
               >
                 + Add Subscription
@@ -820,10 +935,6 @@ function App() {
 
           </section>
         )}
-
-        {/* =========================
-            ADD SUBSCRIPTION
-        ========================= */}
 
         {page === "add-subscription" && (
           <section className="form-section">
@@ -975,12 +1086,257 @@ function App() {
           </section>
         )}
 
-        {/* =========================
-            FUTURE MODULES
-        ========================= */}
+        {page === "delivery" && (
+          <section>
+
+            <div className="head">
+
+              <div>
+
+                <h2>
+                  🚚 Today's Delivery
+                </h2>
+
+                <p className="section-description">
+                  {d?.date
+                    ? `Delivery for ${d.date}`
+                    : "Today's newspaper delivery"}
+                </p>
+
+              </div>
+
+              <div className="delivery-actions">
+
+                <button
+                  onClick={loadDeliveries}
+                  disabled={loadingDeliveries}
+                >
+                  🔄 Refresh
+                </button>
+
+                <button
+                  className="primary"
+                  onClick={generateDeliveries}
+                  disabled={generating}
+                >
+                  {generating
+                    ? "Generating..."
+                    : "⚡ Generate Today"}
+                </button>
+
+              </div>
+
+            </div>
+
+            <div className="delivery-summary">
+
+              <div className="delivery-summary-card">
+                <span>📦 Total</span>
+                <strong>
+                  {deliveries.length}
+                </strong>
+              </div>
+
+              <div className="delivery-summary-card">
+                <span>✅ Delivered</span>
+                <strong>
+                  {
+                    deliveries.filter(
+                      (item) =>
+                        item.status ===
+                        "delivered"
+                    ).length
+                  }
+                </strong>
+              </div>
+
+              <div className="delivery-summary-card">
+                <span>❌ Not Delivered</span>
+                <strong>
+                  {
+                    deliveries.filter(
+                      (item) =>
+                        item.status ===
+                        "not_delivered"
+                    ).length
+                  }
+                </strong>
+              </div>
+
+              <div className="delivery-summary-card">
+                <span>⏸️ Paused</span>
+                <strong>
+                  {
+                    deliveries.filter(
+                      (item) =>
+                        item.status ===
+                        "paused"
+                    ).length
+                  }
+                </strong>
+              </div>
+
+            </div>
+
+            {loadingDeliveries ? (
+
+              <div className="no-data">
+                <div>⏳</div>
+                <h3>Loading deliveries...</h3>
+              </div>
+
+            ) : deliveries.length > 0 ? (
+
+              <div className="table-wrapper">
+
+                <table className="delivery-table">
+
+                  <thead>
+
+                    <tr>
+                      <th>Customer</th>
+                      <th>Newspaper</th>
+                      <th>Qty</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+
+                  </thead>
+
+                  <tbody>
+
+                    {deliveries.map(
+                      (delivery) => (
+
+                        <tr
+                          key={delivery.id}
+                        >
+
+                          <td>
+                            <strong>
+                              {delivery.customer_name}
+                            </strong>
+                          </td>
+
+                          <td>
+                            {delivery.newspaper_name}
+                          </td>
+
+                          <td>
+                            {delivery.quantity}
+                          </td>
+
+                          <td>
+
+                            <span
+                              className={`delivery-status ${delivery.status}`}
+                            >
+                              {getStatusLabel(
+                                delivery.status
+                              )}
+                            </span>
+
+                          </td>
+
+                          <td>
+
+                            <div className="delivery-buttons">
+
+                              <button
+                                className="delivery-btn delivered"
+                                onClick={() =>
+                                  updateDeliveryStatus(
+                                    delivery.id,
+                                    "delivered"
+                                  )
+                                }
+                              >
+                                ✅ Delivered
+                              </button>
+
+                              <button
+                                className="delivery-btn not-delivered"
+                                onClick={() =>
+                                  updateDeliveryStatus(
+                                    delivery.id,
+                                    "not_delivered"
+                                  )
+                                }
+                              >
+                                ❌ Not Delivered
+                              </button>
+
+                              <button
+                                className="delivery-btn paused"
+                                onClick={() =>
+                                  updateDeliveryStatus(
+                                    delivery.id,
+                                    "paused"
+                                  )
+                                }
+                              >
+                                ⏸️ Paused
+                              </button>
+
+                              <button
+                                className="delivery-btn holiday"
+                                onClick={() =>
+                                  updateDeliveryStatus(
+                                    delivery.id,
+                                    "holiday"
+                                  )
+                                }
+                              >
+                                🏖️ Holiday
+                              </button>
+
+                            </div>
+
+                          </td>
+
+                        </tr>
+
+                      )
+                    )}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            ) : (
+
+              <div className="no-data">
+
+                <div>🚚</div>
+
+                <h3>
+                  No deliveries for today
+                </h3>
+
+                <p>
+                  Generate today's deliveries from active subscriptions.
+                </p>
+
+                <button
+                  className="primary"
+                  onClick={generateDeliveries}
+                  disabled={generating}
+                >
+                  {generating
+                    ? "Generating..."
+                    : "⚡ Generate Today's Deliveries"}
+                </button>
+
+              </div>
+
+            )}
+
+          </section>
+        )}
 
         {[
-          "delivery",
           "billing",
           "payments",
           "reports",
@@ -991,10 +1347,8 @@ function App() {
             <div>🚧</div>
 
             <h2>
-              {page === "delivery"
-                ? "Today's Delivery"
-                : page.charAt(0).toUpperCase() +
-                  page.slice(1)}
+              {page.charAt(0).toUpperCase() +
+                page.slice(1)}
             </h2>
 
             <p>
@@ -1015,9 +1369,6 @@ function App() {
   );
 }
 
-/* =========================
-   CARD
-========================= */
 
 function Card({
   icon,
@@ -1046,6 +1397,7 @@ function Card({
     </div>
   );
 }
+
 
 createRoot(
   document.getElementById("root")
