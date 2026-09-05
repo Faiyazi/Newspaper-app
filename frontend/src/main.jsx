@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
 
-const API = "http://127.0.0.1:8000/api";
+const API = "https://newspaper-business-api.onrender.com/api";
 
 function App() {
   const [page, setPage] = useState("dashboard");
