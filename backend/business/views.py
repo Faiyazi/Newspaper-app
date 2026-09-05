@@ -1,9 +1,10 @@
 from decimal import Decimal
 
+from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
 
-from rest_framework import viewsets
+from rest_framework import status, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
@@ -40,7 +41,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
 # =========================================================
 
 class NewspaperViewSet(viewsets.ModelViewSet):
-    queryset = Newspaper.objects.select_related().all().order_by("name")
+    queryset = Newspaper.objects.all().order_by("name")
     serializer_class = NewspaperSerializer
 
 
@@ -79,13 +80,254 @@ class DeliveryViewSet(viewsets.ModelViewSet):
 
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.select_related(
-        "customer"
+        "customer",
     ).all().order_by(
         "-payment_date",
         "-id",
     )
 
     serializer_class = PaymentSerializer
+
+    def create(self, request, *args, **kwargs):
+        """
+        Record a customer payment and automatically apply it
+        to the customer's oldest pending invoices.
+        """
+
+        customer_id = request.data.get("customer")
+        amount_value = request.data.get("amount")
+        payment_date = request.data.get("payment_date")
+        payment_method = request.data.get(
+            "payment_method",
+            "cash",
+        )
+        reference = request.data.get(
+            "reference",
+            "",
+        )
+        notes = request.data.get(
+            "notes",
+            "",
+        )
+
+        # -----------------------------------------------------
+        # Validate customer
+        # -----------------------------------------------------
+
+        if not customer_id:
+            return Response(
+                {
+                    "error": "customer is required."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            customer = Customer.objects.get(
+                id=customer_id
+            )
+        except Customer.DoesNotExist:
+            return Response(
+                {
+                    "error": "Customer not found."
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # -----------------------------------------------------
+        # Validate amount
+        # -----------------------------------------------------
+
+        if amount_value in [None, ""]:
+            return Response(
+                {
+                    "error": "amount is required."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            amount = Decimal(str(amount_value))
+        except Exception:
+            return Response(
+                {
+                    "error": "Invalid payment amount."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if amount <= 0:
+            return Response(
+                {
+                    "error": "Payment amount must be greater than 0."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # -----------------------------------------------------
+        # Payment date
+        # -----------------------------------------------------
+
+        if not payment_date:
+            payment_date = timezone.localdate()
+
+        # -----------------------------------------------------
+        # Get total outstanding amount
+        # -----------------------------------------------------
+
+        total_pending = (
+            Invoice.objects.filter(
+                customer=customer,
+                pending_amount__gt=0,
+            )
+            .aggregate(
+                total=Sum("pending_amount")
+            )["total"]
+            or Decimal("0.00")
+        )
+
+        if total_pending <= 0:
+            return Response(
+                {
+                    "error": (
+                        "This customer has no pending balance."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # -----------------------------------------------------
+        # Prevent overpayment
+        # -----------------------------------------------------
+
+        if amount > total_pending:
+            return Response(
+                {
+                    "error": (
+                        f"Payment amount cannot exceed "
+                        f"pending balance of ₹{total_pending}."
+                    ),
+                    "pending_balance": str(
+                        total_pending
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # -----------------------------------------------------
+        # Create payment + update invoices atomically
+        # -----------------------------------------------------
+
+        with transaction.atomic():
+
+            payment = Payment.objects.create(
+                customer=customer,
+                amount=amount,
+                payment_date=payment_date,
+                payment_method=payment_method,
+                reference=reference,
+                notes=notes,
+            )
+
+            remaining_payment = amount
+            applied_to = []
+
+            # Oldest invoice first
+            invoices = Invoice.objects.filter(
+                customer=customer,
+                pending_amount__gt=0,
+            ).order_by(
+                "month",
+                "id",
+            )
+
+            for invoice in invoices:
+
+                if remaining_payment <= 0:
+                    break
+
+                invoice_pending = (
+                    invoice.pending_amount
+                    or Decimal("0.00")
+                )
+
+                if invoice_pending <= 0:
+                    continue
+
+                if remaining_payment >= invoice_pending:
+                    applied_amount = invoice_pending
+                    invoice.pending_amount = Decimal(
+                        "0.00"
+                    )
+                    invoice.paid_amount = (
+                        invoice.paid_amount
+                        or Decimal("0.00")
+                    ) + applied_amount
+                    invoice.status = "paid"
+
+                    remaining_payment -= applied_amount
+
+                else:
+                    applied_amount = remaining_payment
+
+                    invoice.pending_amount = (
+                        invoice_pending
+                        - applied_amount
+                    )
+
+                    invoice.paid_amount = (
+                        invoice.paid_amount
+                        or Decimal("0.00")
+                    ) + applied_amount
+
+                    invoice.status = "partial"
+
+                    remaining_payment = Decimal(
+                        "0.00"
+                    )
+
+                invoice.save(
+                    update_fields=[
+                        "paid_amount",
+                        "pending_amount",
+                        "status",
+                    ]
+                )
+
+                applied_to.append({
+                    "invoice_id": invoice.id,
+                    "month": str(invoice.month),
+                    "amount": str(
+                        applied_amount
+                    ),
+                    "remaining": str(
+                        invoice.pending_amount
+                    ),
+                    "status": invoice.status,
+                })
+
+        # -----------------------------------------------------
+        # Response
+        # -----------------------------------------------------
+
+        return Response(
+            {
+                "message": "Payment recorded successfully.",
+                "payment": {
+                    "id": payment.id,
+                    "customer": customer.name,
+                    "amount": str(payment.amount),
+                    "payment_date": str(
+                        payment.payment_date
+                    ),
+                    "payment_method": payment.payment_method,
+                    "reference": payment.reference,
+                    "notes": payment.notes,
+                },
+                "applied_to": applied_to,
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 # =========================================================
@@ -94,7 +336,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
 class InvoiceViewSet(viewsets.ModelViewSet):
     queryset = Invoice.objects.select_related(
-        "customer"
+        "customer",
     ).all().order_by(
         "-month",
         "-id",
@@ -446,13 +688,13 @@ def generate_monthly_billing(request):
         # -------------------------------------------------
 
         if pending_amount <= 0:
-            status = "paid"
+            status_value = "paid"
 
         elif paid_amount > 0:
-            status = "partial"
+            status_value = "partial"
 
         else:
-            status = "unpaid"
+            status_value = "unpaid"
 
         # -------------------------------------------------
         # Create invoice
@@ -465,7 +707,7 @@ def generate_monthly_billing(request):
             previous_balance=previous_balance,
             paid_amount=paid_amount,
             pending_amount=pending_amount,
-            status=status,
+            status=status_value,
         )
 
         # -------------------------------------------------
@@ -480,7 +722,7 @@ def generate_monthly_billing(request):
             "previous_balance": str(previous_balance),
             "paid_amount": str(paid_amount),
             "pending_amount": str(pending_amount),
-            "status": status,
+            "status": status_value,
         })
 
         created_count += 1

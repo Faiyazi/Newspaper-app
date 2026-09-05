@@ -20,6 +20,10 @@ function App() {
   );
   const [loadingBilling, setLoadingBilling] = useState(false);
   const [generatingBilling, setGeneratingBilling] = useState(false);
+  const [payments, setPayments] = useState([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [savingPayment, setSavingPayment] = useState(false);
+  const [paymentCustomer, setPaymentCustomer] = useState("");
 
   const load = async () => {
     try {
@@ -78,6 +82,10 @@ function App() {
 
     if (page === "billing") {
       loadBilling();
+    }
+
+    if (page === "payments") {
+      loadPayments();
     }
   }, [page]);
 
@@ -261,6 +269,123 @@ function App() {
       alert("Unable to load billing.");
     } finally {
       setLoadingBilling(false);
+    }
+  };
+
+  const loadPayments = async () => {
+    setLoadingPayments(true);
+
+    try {
+      const [paymentsResponse, invoicesResponse] = await Promise.all([
+        fetch(API + "/payments/"),
+        fetch(API + "/invoices/"),
+      ]);
+
+      if (!paymentsResponse.ok) {
+        throw new Error("Unable to load payments");
+      }
+
+      const paymentData = await paymentsResponse.json();
+      setPayments(
+        Array.isArray(paymentData)
+          ? paymentData
+          : paymentData.results || []
+      );
+
+      if (invoicesResponse.ok) {
+        const invoiceData = await invoicesResponse.json();
+        setInvoices(
+          Array.isArray(invoiceData)
+            ? invoiceData
+            : invoiceData.results || []
+        );
+      }
+    } catch (error) {
+      console.log("Payments API Error:", error);
+      alert("Unable to load payments.");
+    } finally {
+      setLoadingPayments(false);
+    }
+  };
+
+  const getCustomerPending = (customerId) => {
+    if (!customerId) return 0;
+
+    return invoices
+      .filter(
+        (invoice) => Number(invoice.customer) === Number(customerId)
+      )
+      .reduce(
+        (total, invoice) => total + Number(invoice.pending_amount || 0),
+        0
+      );
+  };
+
+  const recordPayment = async (e) => {
+    e.preventDefault();
+
+    const data = Object.fromEntries(new FormData(e.target));
+    data.customer = Number(data.customer);
+    data.amount = Number(data.amount);
+
+    if (!data.customer) {
+      alert("Please select a customer.");
+      return;
+    }
+
+    if (!data.amount || data.amount <= 0) {
+      alert("Please enter a valid payment amount.");
+      return;
+    }
+
+    const pending = getCustomerPending(data.customer);
+
+    if (pending <= 0) {
+      alert("This customer has no pending balance.");
+      return;
+    }
+
+    if (data.amount > pending) {
+      alert(
+        `Payment cannot be more than the pending balance of ${formatCurrency(
+          pending
+        )}.`
+      );
+      return;
+    }
+
+    setSavingPayment(true);
+
+    try {
+      const response = await fetch(API + "/payments/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.log(result);
+        alert(result.error || "Unable to record payment.");
+        return;
+      }
+
+      alert("Payment recorded successfully.");
+
+      e.target.reset();
+      setPaymentCustomer("");
+
+      await loadPayments();
+      await loadBilling();
+      await load();
+    } catch (error) {
+      console.log(error);
+      alert("Unable to connect to server.");
+    } finally {
+      setSavingPayment(false);
     }
   };
 
@@ -1606,25 +1731,221 @@ function App() {
           </section>
         )}
 
-        {[
-          "payments",
-          "reports",
-        ].includes(page) && (
+        {page === "payments" && (
+          <section>
+            <div className="head">
+              <div>
+                <h2>💰 Payments</h2>
+                <p className="section-description">
+                  Record customer payments and manage outstanding balances.
+                </p>
+              </div>
+
+              <button
+                onClick={loadPayments}
+                disabled={loadingPayments}
+              >
+                🔄 Refresh
+              </button>
+            </div>
+
+            <section className="form-section" style={{ marginBottom: "24px" }}>
+              <div className="form-title">
+                <h2>Record Payment</h2>
+                <p>Enter the payment received from a customer.</p>
+              </div>
+
+              <form className="form" onSubmit={recordPayment}>
+                <label>
+                  Customer *
+                  <select
+                    name="customer"
+                    value={paymentCustomer}
+                    onChange={(e) => setPaymentCustomer(e.target.value)}
+                    required
+                  >
+                    <option value="">Select customer</option>
+                    {customers
+                      .filter((customer) => customer.active)
+                      .map((customer) => (
+                        <option
+                          key={customer.id}
+                          value={customer.id}
+                        >
+                          {customer.name}
+                          {customer.mobile
+                            ? ` - ${customer.mobile}`
+                            : ""}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+
+                <div
+                  style={{
+                    padding: "14px 16px",
+                    borderRadius: "10px",
+                    background: "#f8fafc",
+                    border: "1px solid #e5e7eb",
+                  }}
+                >
+                  <small style={{ color: "#6b7280" }}>
+                    Current Pending Balance
+                  </small>
+                  <div
+                    style={{
+                      fontSize: "24px",
+                      fontWeight: "700",
+                      marginTop: "4px",
+                    }}
+                  >
+                    {formatCurrency(getCustomerPending(paymentCustomer))}
+                  </div>
+                </div>
+
+                <label>
+                  Amount *
+                  <input
+                    name="amount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={
+                      paymentCustomer
+                        ? getCustomerPending(paymentCustomer)
+                        : undefined
+                    }
+                    placeholder="Enter payment amount"
+                    required
+                  />
+                </label>
+
+                <label>
+                  Payment Method *
+                  <select name="payment_method" defaultValue="cash" required>
+                    <option value="cash">Cash</option>
+                    <option value="upi">UPI</option>
+                    <option value="bank">Bank</option>
+                  </select>
+                </label>
+
+                <label>
+                  Payment Date *
+                  <input
+                    name="payment_date"
+                    type="date"
+                    defaultValue={new Date()
+                      .toISOString()
+                      .slice(0, 10)}
+                    required
+                  />
+                </label>
+
+                <label>
+                  Reference
+                  <input
+                    name="reference"
+                    type="text"
+                    placeholder="UPI reference / transaction ID"
+                  />
+                </label>
+
+                <label>
+                  Notes
+                  <textarea
+                    name="notes"
+                    placeholder="Payment notes"
+                  />
+                </label>
+
+                <div className="form-buttons">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      const form = event.currentTarget.closest("form");
+                      if (form) form.reset();
+                      setPaymentCustomer("");
+                    }}
+                  >
+                    Clear
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="primary"
+                    disabled={savingPayment}
+                  >
+                    {savingPayment
+                      ? "Recording..."
+                      : "💰 Record Payment"}
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            {loadingPayments ? (
+              <div className="no-data">
+                <div>⏳</div>
+                <h3>Loading payments...</h3>
+              </div>
+            ) : payments.length > 0 ? (
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Customer</th>
+                      <th>Amount</th>
+                      <th>Method</th>
+                      <th>Reference</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {payments.map((payment) => (
+                      <tr key={payment.id}>
+                        <td>{payment.payment_date}</td>
+                        <td>
+                          <strong>
+                            {payment.customer_name ||
+                              payment.customer ||
+                              "-"}
+                          </strong>
+                        </td>
+                        <td>
+                          <strong>
+                            {formatCurrency(payment.amount)}
+                          </strong>
+                        </td>
+                        <td>
+                          {(payment.payment_method || "-")
+                            .toString()
+                            .toUpperCase()}
+                        </td>
+                        <td>{payment.reference || "-"}</td>
+                        <td>{payment.notes || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="no-data">
+                <div>💰</div>
+                <h3>No payments yet</h3>
+                <p>Record the first customer payment above.</p>
+              </div>
+            )}
+          </section>
+        )}
+
+        {page === "reports" && (
           <section className="empty">
             <div>🚧</div>
-
-            <h2>
-              {page.charAt(0).toUpperCase() +
-                page.slice(1)}
-            </h2>
-
-            <p>
-              This module is coming next.
-            </p>
-
-            <small>
-              The backend foundation is ready.
-            </small>
+            <h2>Reports</h2>
+            <p>This module is coming next.</p>
+            <small>The backend foundation is ready.</small>
           </section>
         )}
 
