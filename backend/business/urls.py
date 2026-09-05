@@ -11,31 +11,64 @@ from .views import (
     dashboard,
     todays_delivery,
     generate_todays_delivery,
+    generate_monthly_billing,
 )
 
 
 router = DefaultRouter()
 
-router.register("customers", CustomerViewSet)
-router.register("newspapers", NewspaperViewSet)
-router.register("subscriptions", SubscriptionViewSet)
-router.register("deliveries", DeliveryViewSet)
-router.register("payments", PaymentViewSet)
-router.register("invoices", InvoiceViewSet)
+router.register(
+    "customers",
+    CustomerViewSet,
+)
+
+router.register(
+    "newspapers",
+    NewspaperViewSet,
+)
+
+router.register(
+    "subscriptions",
+    SubscriptionViewSet,
+)
+
+router.register(
+    "deliveries",
+    DeliveryViewSet,
+)
+
+router.register(
+    "payments",
+    PaymentViewSet,
+)
+
+router.register(
+    "invoices",
+    InvoiceViewSet,
+)
 
 
 urlpatterns = [
-    # Custom routes MUST come before router URLs
+
+    # Today's delivery
     path(
         "deliveries/today/",
         todays_delivery,
     ),
 
+    # Generate today's deliveries
     path(
         "deliveries/generate-today/",
         generate_todays_delivery,
     ),
 
+    # Generate monthly billing
+    path(
+        "billing/generate/",
+        generate_monthly_billing,
+    ),
+
+    # Dashboard
     path(
         "dashboard/",
         dashboard,

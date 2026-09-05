@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db.models import Sum
 from django.utils import timezone
 
@@ -24,15 +26,27 @@ from .serializers import (
 )
 
 
+# =========================================================
+# CUSTOMER
+# =========================================================
+
 class CustomerViewSet(viewsets.ModelViewSet):
     queryset = Customer.objects.all().order_by("name")
     serializer_class = CustomerSerializer
 
 
+# =========================================================
+# NEWSPAPER
+# =========================================================
+
 class NewspaperViewSet(viewsets.ModelViewSet):
     queryset = Newspaper.objects.select_related().all().order_by("name")
     serializer_class = NewspaperSerializer
 
+
+# =========================================================
+# SUBSCRIPTION
+# =========================================================
 
 class SubscriptionViewSet(viewsets.ModelViewSet):
     queryset = Subscription.objects.select_related(
@@ -42,6 +56,10 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
 
     serializer_class = SubscriptionSerializer
 
+
+# =========================================================
+# DELIVERY
+# =========================================================
 
 class DeliveryViewSet(viewsets.ModelViewSet):
     queryset = Delivery.objects.select_related(
@@ -55,6 +73,10 @@ class DeliveryViewSet(viewsets.ModelViewSet):
     serializer_class = DeliverySerializer
 
 
+# =========================================================
+# PAYMENT
+# =========================================================
+
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.select_related(
         "customer"
@@ -66,15 +88,24 @@ class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = PaymentSerializer
 
 
+# =========================================================
+# INVOICE
+# =========================================================
+
 class InvoiceViewSet(viewsets.ModelViewSet):
     queryset = Invoice.objects.select_related(
         "customer"
     ).all().order_by(
         "-month",
+        "-id",
     )
 
     serializer_class = InvoiceSerializer
 
+
+# =========================================================
+# DASHBOARD
+# =========================================================
 
 @api_view(["GET"])
 def dashboard(request):
@@ -126,6 +157,10 @@ def dashboard(request):
     })
 
 
+# =========================================================
+# TODAY'S DELIVERY
+# =========================================================
+
 @api_view(["GET"])
 def todays_delivery(request):
     today = timezone.localdate()
@@ -146,6 +181,10 @@ def todays_delivery(request):
 
     return Response(serializer.data)
 
+
+# =========================================================
+# GENERATE TODAY'S DELIVERY
+# =========================================================
 
 @api_view(["POST"])
 def generate_todays_delivery(request):
@@ -170,12 +209,18 @@ def generate_todays_delivery(request):
     for subscription in active_subscriptions:
 
         # Do not create delivery before subscription starts
-        if subscription.start_date and today < subscription.start_date:
+        if (
+            subscription.start_date
+            and today < subscription.start_date
+        ):
             skipped_count += 1
             continue
 
         # Do not create delivery after subscription ends
-        if subscription.end_date and today > subscription.end_date:
+        if (
+            subscription.end_date
+            and today > subscription.end_date
+        ):
             skipped_count += 1
             continue
 
@@ -208,5 +253,245 @@ def generate_todays_delivery(request):
         "date": today,
         "created": created_count,
         "skipped": skipped_count,
-        "message": f"{created_count} delivery record(s) created.",
+        "message": (
+            f"{created_count} delivery record(s) created."
+        ),
+    })
+
+
+# =========================================================
+# GENERATE MONTHLY BILLING
+# =========================================================
+
+@api_view(["POST"])
+def generate_monthly_billing(request):
+    """
+    Generate invoices for a billing month.
+
+    Request:
+    {
+        "month": "2026-09-01"
+    }
+
+    The month must be the first day of the month.
+    """
+
+    month_value = request.data.get("month")
+
+    # -----------------------------------------------------
+    # Validate month
+    # -----------------------------------------------------
+
+    if not month_value:
+        return Response(
+            {
+                "error": (
+                    "month is required. "
+                    "Use YYYY-MM-01."
+                )
+            },
+            status=400,
+        )
+
+    try:
+        billing_month = timezone.datetime.strptime(
+            month_value,
+            "%Y-%m-%d",
+        ).date()
+
+    except ValueError:
+        return Response(
+            {
+                "error": (
+                    "Invalid month. "
+                    "Use YYYY-MM-01."
+                )
+            },
+            status=400,
+        )
+
+    # -----------------------------------------------------
+    # Month must start on day 1
+    # -----------------------------------------------------
+
+    if billing_month.day != 1:
+        return Response(
+            {
+                "error": (
+                    "month must be the first day "
+                    "of the month."
+                )
+            },
+            status=400,
+        )
+
+    # -----------------------------------------------------
+    # Calculate next month
+    # -----------------------------------------------------
+
+    if billing_month.month == 12:
+        next_month = billing_month.replace(
+            year=billing_month.year + 1,
+            month=1,
+        )
+    else:
+        next_month = billing_month.replace(
+            month=billing_month.month + 1,
+        )
+
+    # -----------------------------------------------------
+    # Get active customers with active subscriptions
+    # -----------------------------------------------------
+
+    customers = Customer.objects.filter(
+        active=True,
+        subscriptions__status="active",
+    ).distinct()
+
+    created_count = 0
+    existing_count = 0
+
+    invoices = []
+
+    # -----------------------------------------------------
+    # Generate invoice for each customer
+    # -----------------------------------------------------
+
+    for customer in customers:
+
+        # -------------------------------------------------
+        # Check if invoice already exists
+        # -------------------------------------------------
+
+        existing_invoice = Invoice.objects.filter(
+            customer=customer,
+            month=billing_month,
+        ).first()
+
+        if existing_invoice:
+            existing_count += 1
+            continue
+
+        # -------------------------------------------------
+        # Get delivered newspapers for the month
+        # -------------------------------------------------
+
+        deliveries = Delivery.objects.filter(
+            customer=customer,
+            date__gte=billing_month,
+            date__lt=next_month,
+            status="delivered",
+        ).select_related(
+            "subscription",
+            "subscription__newspaper",
+        )
+
+        # -------------------------------------------------
+        # Calculate subtotal
+        # -------------------------------------------------
+
+        subtotal = Decimal("0.00")
+
+        for delivery in deliveries:
+
+            price = (
+                delivery.subscription.price
+                or Decimal("0.00")
+            )
+
+            quantity = Decimal(
+                str(delivery.quantity or 0)
+            )
+
+            subtotal += price * quantity
+
+        # -------------------------------------------------
+        # Calculate previous pending balance
+        # -------------------------------------------------
+
+        previous_balance = (
+            Invoice.objects.filter(
+                customer=customer,
+                month__lt=billing_month,
+                pending_amount__gt=0,
+            )
+            .aggregate(
+                total=Sum("pending_amount")
+            )["total"]
+            or Decimal("0.00")
+        )
+
+        # -------------------------------------------------
+        # Initial payment
+        # -------------------------------------------------
+
+        paid_amount = Decimal("0.00")
+
+        # -------------------------------------------------
+        # Calculate pending amount
+        # -------------------------------------------------
+
+        total_due = (
+            subtotal
+            + previous_balance
+        )
+
+        pending_amount = (
+            total_due
+            - paid_amount
+        )
+
+        # -------------------------------------------------
+        # Determine invoice status
+        # -------------------------------------------------
+
+        if pending_amount <= 0:
+            status = "paid"
+
+        elif paid_amount > 0:
+            status = "partial"
+
+        else:
+            status = "unpaid"
+
+        # -------------------------------------------------
+        # Create invoice
+        # -------------------------------------------------
+
+        invoice = Invoice.objects.create(
+            customer=customer,
+            month=billing_month,
+            subtotal=subtotal,
+            previous_balance=previous_balance,
+            paid_amount=paid_amount,
+            pending_amount=pending_amount,
+            status=status,
+        )
+
+        # -------------------------------------------------
+        # Add response data
+        # -------------------------------------------------
+
+        invoices.append({
+            "id": invoice.id,
+            "customer": customer.name,
+            "month": str(billing_month),
+            "subtotal": str(subtotal),
+            "previous_balance": str(previous_balance),
+            "paid_amount": str(paid_amount),
+            "pending_amount": str(pending_amount),
+            "status": status,
+        })
+
+        created_count += 1
+
+    # -----------------------------------------------------
+    # Return response
+    # -----------------------------------------------------
+
+    return Response({
+        "month": str(billing_month),
+        "created": created_count,
+        "already_exists": existing_count,
+        "invoices": invoices,
     })

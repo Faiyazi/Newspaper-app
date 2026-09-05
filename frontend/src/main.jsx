@@ -14,6 +14,12 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [loadingDeliveries, setLoadingDeliveries] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [invoices, setInvoices] = useState([]);
+  const [billingMonth, setBillingMonth] = useState(
+    new Date().toISOString().slice(0, 7) + "-01"
+  );
+  const [loadingBilling, setLoadingBilling] = useState(false);
+  const [generatingBilling, setGeneratingBilling] = useState(false);
 
   const load = async () => {
     try {
@@ -68,6 +74,10 @@ function App() {
   useEffect(() => {
     if (page === "delivery") {
       loadDeliveries();
+    }
+
+    if (page === "billing") {
+      loadBilling();
     }
   }, [page]);
 
@@ -232,6 +242,95 @@ function App() {
       console.log(error);
       alert("Unable to connect to server.");
     }
+  };
+
+  const loadBilling = async () => {
+    setLoadingBilling(true);
+
+    try {
+      const response = await fetch(API + "/invoices/");
+
+      if (!response.ok) {
+        throw new Error("Unable to load invoices");
+      }
+
+      const data = await response.json();
+      setInvoices(Array.isArray(data) ? data : data.results || []);
+    } catch (error) {
+      console.log("Billing API Error:", error);
+      alert("Unable to load billing.");
+    } finally {
+      setLoadingBilling(false);
+    }
+  };
+
+  const generateBilling = async () => {
+    setGeneratingBilling(true);
+
+    try {
+      const response = await fetch(
+        API + "/billing/generate/",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            month: billingMonth,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.log(data);
+        alert(data.error || "Unable to generate billing.");
+        return;
+      }
+
+      alert(
+        `${data.created} invoice(s) created.`
+      );
+
+      await loadBilling();
+      await load();
+    } catch (error) {
+      console.log(error);
+      alert("Unable to connect to server.");
+    } finally {
+      setGeneratingBilling(false);
+    }
+  };
+
+  const formatCurrency = (value) => {
+    const number = Number(value || 0);
+
+    return `₹${number.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  const formatBillingMonth = (value) => {
+    if (!value) return "-";
+
+    const date = new Date(`${value}T00:00:00`);
+
+    return date.toLocaleDateString("en-IN", {
+      month: "long",
+      year: "numeric",
+    });
+  };
+
+  const getInvoiceStatusLabel = (status) => {
+    const labels = {
+      paid: "Paid",
+      partial: "Partially Paid",
+      unpaid: "Unpaid",
+    };
+
+    return labels[status] || status || "-";
   };
 
   const nav = [
@@ -1336,14 +1435,182 @@ function App() {
           </section>
         )}
 
+        {page === "billing" && (
+          <section>
+            <div className="head">
+              <div>
+                <h2>🧾 Billing</h2>
+
+                <p className="section-description">
+                  Generate and manage monthly customer invoices.
+                </p>
+              </div>
+
+              <div className="delivery-actions">
+                <button
+                  onClick={loadBilling}
+                  disabled={loadingBilling}
+                >
+                  🔄 Refresh
+                </button>
+
+                <button
+                  className="primary"
+                  onClick={generateBilling}
+                  disabled={generatingBilling}
+                >
+                  {generatingBilling
+                    ? "Generating..."
+                    : "⚡ Generate Billing"}
+                </button>
+              </div>
+            </div>
+
+            <div className="form-section" style={{ marginBottom: "24px" }}>
+              <div className="form-title">
+                <h2>Billing Month</h2>
+
+                <p>
+                  Select the first day of the month you want to bill.
+                </p>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "12px",
+                  alignItems: "end",
+                  flexWrap: "wrap",
+                }}
+              >
+                <label style={{ minWidth: "220px" }}>
+                  Month
+                  <input
+                    type="date"
+                    value={billingMonth}
+                    onChange={(e) =>
+                      setBillingMonth(e.target.value)
+                    }
+                  />
+                </label>
+
+                <div
+                  style={{
+                    paddingBottom: "10px",
+                    color: "#6b7280",
+                    fontSize: "14px",
+                  }}
+                >
+                  {formatBillingMonth(billingMonth)}
+                </div>
+              </div>
+            </div>
+
+            {loadingBilling ? (
+              <div className="no-data">
+                <div>⏳</div>
+                <h3>Loading invoices...</h3>
+              </div>
+            ) : invoices.length > 0 ? (
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Customer</th>
+                      <th>Month</th>
+                      <th>Subtotal</th>
+                      <th>Previous Balance</th>
+                      <th>Paid</th>
+                      <th>Pending</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {invoices.map((invoice) => (
+                      <tr key={invoice.id}>
+                        <td>
+                          <strong>
+                            {invoice.customer_name ||
+                              invoice.customer ||
+                              "-"}
+                          </strong>
+                        </td>
+
+                        <td>
+                          {formatBillingMonth(invoice.month)}
+                        </td>
+
+                        <td>
+                          {formatCurrency(invoice.subtotal)}
+                        </td>
+
+                        <td>
+                          {formatCurrency(
+                            invoice.previous_balance
+                          )}
+                        </td>
+
+                        <td>
+                          {formatCurrency(invoice.paid_amount)}
+                        </td>
+
+                        <td>
+                          <strong>
+                            {formatCurrency(
+                              invoice.pending_amount
+                            )}
+                          </strong>
+                        </td>
+
+                        <td>
+                          <span
+                            className={
+                              invoice.status === "paid"
+                                ? "status-active"
+                                : "status-inactive"
+                            }
+                          >
+                            {getInvoiceStatusLabel(
+                              invoice.status
+                            )}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="no-data">
+                <div>🧾</div>
+
+                <h3>No invoices yet</h3>
+
+                <p>
+                  Select a billing month and generate invoices
+                  from active subscriptions and delivered newspapers.
+                </p>
+
+                <button
+                  className="primary"
+                  onClick={generateBilling}
+                  disabled={generatingBilling}
+                >
+                  {generatingBilling
+                    ? "Generating..."
+                    : "⚡ Generate Billing"}
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+
         {[
-          "billing",
           "payments",
           "reports",
         ].includes(page) && (
-
           <section className="empty">
-
             <div>🚧</div>
 
             <h2>
@@ -1358,9 +1625,7 @@ function App() {
             <small>
               The backend foundation is ready.
             </small>
-
           </section>
-
         )}
 
       </main>
