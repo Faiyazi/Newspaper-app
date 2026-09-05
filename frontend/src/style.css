@@ -1,1 +1,375 @@
-*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f7fb;color:#18202a}.app{display:flex;min-height:100vh}aside{width:240px;background:#111827;color:white;padding:20px 12px;position:fixed;inset:0 auto 0 0}.brand{font-size:21px;font-weight:800;padding:10px 12px 25px}aside button{display:block;width:100%;border:0;background:none;color:#cbd5e1;text-align:left;padding:12px;border-radius:8px;margin:3px 0;cursor:pointer}aside button.active,aside button:hover{background:#273449;color:white}main{margin-left:240px;width:calc(100% - 240px);padding:30px}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px}header h1{margin:0;text-transform:capitalize}header p{color:#6b7280}header button,.quick button{padding:10px 15px;border:1px solid #ddd;background:white;border-radius:8px}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.card,section{background:white;border:1px solid #e5e7eb;border-radius:13px;padding:20px}.card{display:flex;gap:15px;align-items:center}.card b{font-size:28px;background:#f1f5f9;padding:10px;border-radius:10px}.card small{color:#6b7280}.card h2{margin:5px 0;font-size:23px}.quick{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}section{margin-top:20px}.head{display:flex;justify-content:space-between;align-items:center}.primary{background:#2563eb!important;color:white!important;border:0!important}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:13px;border-bottom:1px solid #eee}.form{max-width:650px}.form label{display:block;text-transform:capitalize;font-size:13px;font-weight:600;margin:13px 0}.form input,.form textarea{display:block;width:100%;padding:11px;border:1px solid #ddd;border-radius:7px;margin-top:6px}.form textarea{min-height:70px}.empty{text-align:center;padding:80px!important;font-size:18px}.empty div{font-size:45px}@media(max-width:800px){aside{width:65px}.brand{font-size:0}aside button span{display:none}main{margin-left:65px;width:calc(100% - 65px);padding:15px}.cards{grid-template-columns:1fr 1fr}.quick{grid-template-columns:1fr 1fr}}@media(max-width:500px){.cards,.quick{grid-template-columns:1fr}}
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f5f7fb;
+  color: #18202a;
+}
+
+.app {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* SIDEBAR */
+aside {
+  width: 240px;
+  background: #111827;
+  color: white;
+  padding: 20px 12px;
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 100;
+  overflow-y: auto;
+}
+
+.brand {
+  font-size: 21px;
+  font-weight: 800;
+  padding: 10px 12px 25px;
+}
+
+aside button {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: none;
+  color: #cbd5e1;
+  text-align: left;
+  padding: 12px;
+  border-radius: 8px;
+  margin: 3px 0;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+aside button.active,
+aside button:hover {
+  background: #273449;
+  color: white;
+}
+
+/* MAIN */
+main {
+  margin-left: 240px;
+  width: calc(100% - 240px);
+  padding: 30px;
+  min-width: 0;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+  gap: 15px;
+}
+
+header h1 {
+  margin: 0;
+  text-transform: capitalize;
+}
+
+header p {
+  color: #6b7280;
+  margin-bottom: 0;
+}
+
+header button,
+.quick button {
+  padding: 10px 15px;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* DASHBOARD */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.card,
+section {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 13px;
+  padding: 20px;
+}
+
+.card {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
+.card b {
+  font-size: 28px;
+  background: #f1f5f9;
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.card small {
+  color: #6b7280;
+}
+
+.card h2 {
+  margin: 5px 0;
+  font-size: 23px;
+}
+
+.quick {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+section {
+  margin-top: 20px;
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.primary {
+  background: #2563eb !important;
+  color: white !important;
+  border: 0 !important;
+  cursor: pointer;
+}
+
+/* TABLE */
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 13px;
+  border-bottom: 1px solid #eee;
+  white-space: nowrap;
+}
+
+/* FORM */
+.form {
+  max-width: 650px;
+  width: 100%;
+}
+
+.form label {
+  display: block;
+  text-transform: capitalize;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 13px 0;
+}
+
+.form input,
+.form textarea,
+.form select {
+  display: block;
+  width: 100%;
+  padding: 11px;
+  border: 1px solid #ddd;
+  border-radius: 7px;
+  margin-top: 6px;
+  font-size: 15px;
+}
+
+.form textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
+.empty {
+  text-align: center;
+  padding: 80px !important;
+  font-size: 18px;
+}
+
+.empty div {
+  font-size: 45px;
+}
+
+/* TABLET */
+@media (max-width: 1000px) {
+  aside {
+    width: 200px;
+  }
+
+  main {
+    margin-left: 200px;
+    width: calc(100% - 200px);
+    padding: 20px;
+  }
+
+  .cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .quick {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* MOBILE */
+@media (max-width: 700px) {
+  .app {
+    display: block;
+  }
+
+  aside {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    width: 100%;
+    height: 68px;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 3px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .brand {
+    display: none;
+  }
+
+  aside button {
+    width: 70px;
+    min-width: 70px;
+    height: 58px;
+    margin: 0;
+    padding: 6px 3px;
+    text-align: center;
+    font-size: 11px;
+  }
+
+  aside button span {
+    display: block;
+    margin-top: 3px;
+    white-space: normal;
+  }
+
+  main {
+    margin-left: 0;
+    width: 100%;
+    padding: 15px;
+    padding-bottom: 90px;
+  }
+
+  header {
+    align-items: flex-start;
+    flex-direction: column;
+    margin-bottom: 18px;
+  }
+
+  header h1 {
+    font-size: 24px;
+  }
+
+  header p {
+    margin: 5px 0;
+  }
+
+  header button {
+    width: 100%;
+  }
+
+  .cards {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .card {
+    padding: 14px;
+    gap: 10px;
+  }
+
+  .card b {
+    font-size: 22px;
+    padding: 7px;
+  }
+
+  .card h2 {
+    font-size: 19px;
+  }
+
+  .quick {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  section {
+    padding: 15px;
+    overflow: hidden;
+  }
+
+  .head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .head button {
+    width: 100%;
+  }
+
+  .form {
+    max-width: 100%;
+  }
+}
+
+/* SMALL PHONES */
+@media (max-width: 450px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+
+  .quick {
+    grid-template-columns: 1fr;
+  }
+
+  header h1 {
+    font-size: 21px;
+  }
+
+  .card {
+    min-height: 75px;
+  }
+
+  section {
+    margin-top: 15px;
+    border-radius: 10px;
+  }
+
+  .empty {
+    padding: 50px 15px !important;
+  }
+
+  table {
+    min-width: 550px;
+  }
+}
