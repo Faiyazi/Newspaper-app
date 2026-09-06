@@ -1,8 +1,28 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
-
-const API = "https://newspaper-business-api.onrender.com/api";
+import { getDashboard, getCustomers, getNewspapers, getSubscriptions } from "./services/coreService";
+import { createCustomer } from "./services/customerService";
+import { getEmployees, createEmployee } from "./services/employeeService";
+import {
+  getTodayDeliveries,
+  generateTodayDeliveries,
+  updateDeliveryEmployee,
+  updateDeliveryStatus,
+} from "./services/deliveryService";
+import {
+  getInvoices,
+  generateInvoices,
+} from "./services/billingService";
+import {
+  getPayments,
+  createPayment,
+} from "./services/paymentService";
+import {
+  createSubscription,
+  updateSubscription,
+  deleteSubscription,
+} from "./services/subscriptionService";
 
 function App() {
   const [page, setPage] = useState("dashboard");
@@ -26,25 +46,22 @@ function App() {
   const [paymentCustomer, setPaymentCustomer] = useState("");
   const [employees, setEmployees] = useState([]);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [editingSubscription, setEditingSubscription] = useState(null);
 
   const load = async () => {
     try {
-      const [
-        dashboardRes,
-        customersRes,
-        newspapersRes,
-        subscriptionsRes,
-      ] = await Promise.all([
-        fetch(API + "/dashboard/"),
-        fetch(API + "/customers/"),
-        fetch(API + "/newspapers/"),
-        fetch(API + "/subscriptions/"),
-      ]);
+      const [dashboard, customerData, newspaperData, subscriptionData] =
+        await Promise.all([
+          getDashboard(),
+          getCustomers(),
+          getNewspapers(),
+          getSubscriptions(),
+        ]);
 
-      setD(await dashboardRes.json());
-      setC(await customersRes.json());
-      setN(await newspapersRes.json());
-      setS(await subscriptionsRes.json());
+      setD(dashboard);
+      setC(customerData);
+      setN(newspaperData);
+      setS(subscriptionData);
     } catch (error) {
       console.log("API Error:", error);
     }
@@ -53,10 +70,7 @@ function App() {
   const loadEmployees = async () => {
     setLoadingEmployees(true);
     try {
-      const response = await fetch(API + "/employees/");
-      if (!response.ok) throw new Error("Unable to load employees");
-      const data = await response.json();
-      setEmployees(Array.isArray(data) ? data : data.results || []);
+      setEmployees(await getEmployees());
     } catch (error) {
       console.log("Employee API Error:", error);
       alert("Unable to load employees.");
@@ -67,19 +81,8 @@ function App() {
 
   const loadDeliveries = async () => {
     setLoadingDeliveries(true);
-
     try {
-      const response = await fetch(
-        API + "/deliveries/today/"
-      );
-
-      if (!response.ok) {
-        throw new Error("Unable to load deliveries");
-      }
-
-      const data = await response.json();
-
-      setDeliveries(data);
+      setDeliveries(await getTodayDeliveries());
     } catch (error) {
       console.log("Delivery API Error:", error);
       alert("Unable to load today's deliveries.");
@@ -95,6 +98,9 @@ function App() {
   useEffect(() => {
     if (page === "delivery") {
       loadDeliveries();
+      if (employees.length === 0) {
+        loadEmployees();
+      }
     }
 
     if (page === "billing") {
@@ -119,74 +125,46 @@ function App() {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.target));
     data.active = true;
-    if (!data.joining_date) data.joining_date = new Date().toISOString().slice(0, 10);
+    if (!data.joining_date) {
+      data.joining_date = new Date().toISOString().slice(0, 10);
+    }
+
     try {
-      const response = await fetch(API + "/employees/", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(data),
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        console.log(result);
-        alert("Unable to add employee.");
-        return;
-      }
+      await createEmployee(data);
       e.target.reset();
       await loadEmployees();
       changePage("employees");
     } catch (error) {
       console.log(error);
-      alert("Unable to connect to server.");
+      alert(error.message || "Unable to add employee.");
     }
   };
 
   const addCustomer = async (e) => {
     e.preventDefault();
 
-    const data = Object.fromEntries(
-      new FormData(e.target)
-    );
-
+    const data = Object.fromEntries(new FormData(e.target));
     data.active = true;
 
     if (!data.start_date) {
-      data.start_date = new Date()
-        .toISOString()
-        .slice(0, 10);
+      data.start_date = new Date().toISOString().slice(0, 10);
     }
 
     try {
-      const response = await fetch(
-        API + "/customers/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(data),
-        }
-      );
-
-      if (response.ok) {
-        e.target.reset();
-        await load();
-        changePage("customers");
-      } else {
-        alert("Unable to add customer.");
-      }
+      await createCustomer(data);
+      e.target.reset();
+      await load();
+      changePage("customers");
     } catch (error) {
-      alert("Unable to connect to server.");
+      console.log(error);
+      alert(error.message || "Unable to add customer.");
     }
   };
 
-  const addSubscription = async (e) => {
+  const saveSubscription = async (e) => {
     e.preventDefault();
 
-    const data = Object.fromEntries(
-      new FormData(e.target)
-    );
-
+    const data = Object.fromEntries(new FormData(e.target));
     data.customer = Number(data.customer);
     data.newspaper = Number(data.newspaper);
     data.price = Number(data.price);
@@ -197,88 +175,92 @@ function App() {
       data.end_date = null;
     }
 
-    try {
-      const response = await fetch(
-        API + "/subscriptions/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(data),
-        }
-      );
+    const duplicate = subscriptions.find((subscription) => {
+      const sameCustomer =
+        Number(subscription.customer) === Number(data.customer);
+      const sameNewspaper =
+        Number(subscription.newspaper) === Number(data.newspaper);
+      const active = subscription.status === "active";
+      const differentRecord =
+        !editingSubscription ||
+        Number(subscription.id) !== Number(editingSubscription.id);
 
-      if (response.ok) {
-        e.target.reset();
-        await load();
-        changePage("subscriptions");
+      return sameCustomer && sameNewspaper && active && differentRecord;
+    });
+
+    if (duplicate) {
+      alert(
+        "This customer already has an active subscription for this newspaper. Edit the existing subscription and increase the quantity instead."
+      );
+      return;
+    }
+
+    try {
+      if (editingSubscription) {
+        await updateSubscription(editingSubscription.id, data);
+        alert("Subscription updated successfully.");
       } else {
-        const error = await response.json();
-        console.log(error);
-        alert("Unable to create subscription.");
+        await createSubscription(data);
+        alert("Subscription created successfully.");
       }
+
+      e.target.reset();
+      setEditingSubscription(null);
+      await load();
+      changePage("subscriptions");
     } catch (error) {
       console.log(error);
-      alert("Unable to connect to server.");
+      alert(error.message || "Unable to save subscription.");
+    }
+  };
+
+  const startEditSubscription = (subscription) => {
+    setEditingSubscription(subscription);
+    changePage("add-subscription");
+  };
+
+  const removeSubscription = async (subscription) => {
+    const customerName =
+      subscription.customer_name || `Customer #${subscription.customer}`;
+    const newspaperName =
+      subscription.newspaper_name || `Newspaper #${subscription.newspaper}`;
+
+    if (
+      !window.confirm(
+        `Delete ${newspaperName} subscription for ${customerName}?`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await deleteSubscription(subscription.id);
+      alert("Subscription deleted successfully.");
+      await load();
+    } catch (error) {
+      console.log(error);
+      alert(error.message || "Unable to delete subscription.");
     }
   };
 
   const generateDeliveries = async () => {
     setGenerating(true);
-
     try {
-      const response = await fetch(
-        API + "/deliveries/generate-today/",
-        {
-          method: "POST",
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.log(data);
-        alert("Unable to generate deliveries.");
-        return;
-      }
-
-      alert(
-        `${data.created} delivery record(s) created.`
-      );
-
+      const data = await generateTodayDeliveries();
+      alert(`${data.created} delivery record(s) created.`);
       await loadDeliveries();
       await load();
     } catch (error) {
       console.log(error);
-      alert("Unable to connect to server.");
+      alert(error.message || "Unable to generate deliveries.");
     } finally {
       setGenerating(false);
     }
   };
 
-  const updateDeliveryEmployee = async (deliveryId, employeeId) => {
+  const handleDeliveryEmployeeUpdate = async (deliveryId, employeeId) => {
     try {
-      const response = await fetch(
-        API + `/deliveries/${deliveryId}/`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            employee: employeeId ? Number(employeeId) : null,
-          }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        console.log(result);
-        alert("Unable to assign employee.");
-        return;
-      }
+      await updateDeliveryEmployee(deliveryId, employeeId);
 
       setDeliveries((current) =>
         current.map((delivery) =>
@@ -297,42 +279,18 @@ function App() {
       );
     } catch (error) {
       console.log(error);
-      alert("Unable to connect to server.");
+      alert(error.message || "Unable to assign employee.");
     }
   };
 
-  const updateDeliveryStatus = async (
-    deliveryId,
-    status
-  ) => {
+  const handleDeliveryStatusUpdate = async (deliveryId, status) => {
     try {
-      const response = await fetch(
-        API + `/deliveries/${deliveryId}/`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            status: status,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        console.log(error);
-        alert("Unable to update delivery.");
-        return;
-      }
+      await updateDeliveryStatus(deliveryId, status);
 
       setDeliveries((current) =>
         current.map((delivery) =>
           delivery.id === deliveryId
-            ? {
-                ...delivery,
-                status: status,
-              }
+            ? { ...delivery, status }
             : delivery
         )
       );
@@ -340,22 +298,14 @@ function App() {
       await load();
     } catch (error) {
       console.log(error);
-      alert("Unable to connect to server.");
+      alert(error.message || "Unable to update delivery.");
     }
   };
 
   const loadBilling = async () => {
     setLoadingBilling(true);
-
     try {
-      const response = await fetch(API + "/invoices/");
-
-      if (!response.ok) {
-        throw new Error("Unable to load invoices");
-      }
-
-      const data = await response.json();
-      setInvoices(Array.isArray(data) ? data : data.results || []);
+      setInvoices(await getInvoices());
     } catch (error) {
       console.log("Billing API Error:", error);
       alert("Unable to load billing.");
@@ -368,30 +318,13 @@ function App() {
     setLoadingPayments(true);
 
     try {
-      const [paymentsResponse, invoicesResponse] = await Promise.all([
-        fetch(API + "/payments/"),
-        fetch(API + "/invoices/"),
+      const [paymentData, invoiceData] = await Promise.all([
+        getPayments(),
+        getInvoices(),
       ]);
 
-      if (!paymentsResponse.ok) {
-        throw new Error("Unable to load payments");
-      }
-
-      const paymentData = await paymentsResponse.json();
-      setPayments(
-        Array.isArray(paymentData)
-          ? paymentData
-          : paymentData.results || []
-      );
-
-      if (invoicesResponse.ok) {
-        const invoiceData = await invoicesResponse.json();
-        setInvoices(
-          Array.isArray(invoiceData)
-            ? invoiceData
-            : invoiceData.results || []
-        );
-      }
+      setPayments(paymentData);
+      setInvoices(invoiceData);
     } catch (error) {
       console.log("Payments API Error:", error);
       alert("Unable to load payments.");
@@ -449,21 +382,7 @@ function App() {
     setSavingPayment(true);
 
     try {
-      const response = await fetch(API + "/payments/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        console.log(result);
-        alert(result.error || "Unable to record payment.");
-        return;
-      }
+      await createPayment(data);
 
       alert("Payment recorded successfully.");
 
@@ -485,30 +404,9 @@ function App() {
     setGeneratingBilling(true);
 
     try {
-      const response = await fetch(
-        API + "/billing/generate/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            month: billingMonth,
-          }),
-        }
-      );
+      const data = await generateInvoices(billingMonth);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.log(data);
-        alert(data.error || "Unable to generate billing.");
-        return;
-      }
-
-      alert(
-        `${data.created} invoice(s) created.`
-      );
+      alert(`${data.created} invoice(s) created.`);
 
       await loadBilling();
       await load();
@@ -750,9 +648,10 @@ function App() {
                 </button>
 
                 <button
-                  onClick={() =>
-                    changePage("subscriptions")
-                  }
+                  onClick={() => {
+                    setEditingSubscription(null);
+                    changePage("subscriptions");
+                  }}
                 >
                   📦 Subscription
                 </button>
@@ -809,6 +708,7 @@ function App() {
                       <th>Mobile</th>
                       <th>Area</th>
                       <th>Status</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
 
@@ -958,6 +858,7 @@ function App() {
                 <input
                   name="start_date"
                   type="date"
+                  defaultValue={editingSubscription?.start_date || ""}
                 />
 
               </label>
@@ -1201,7 +1102,6 @@ function App() {
                           </td>
 
                           <td>
-
                             <span
                               className={
                                 subscription.status ===
@@ -1212,7 +1112,43 @@ function App() {
                             >
                               {subscription.status}
                             </span>
+                          </td>
 
+                          <td>
+                            <div style={{ display: "flex", gap: "8px" }}>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  startEditSubscription(subscription)
+                                }
+                                style={{
+                                  padding: "7px 10px",
+                                  borderRadius: "8px",
+                                  border: "1px solid #d1d5db",
+                                  background: "#fff",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                ✏️ Edit
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  removeSubscription(subscription)
+                                }
+                                style={{
+                                  padding: "7px 10px",
+                                  borderRadius: "8px",
+                                  border: "1px solid #fecaca",
+                                  background: "#fff",
+                                  color: "#dc2626",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                🗑 Delete
+                              </button>
+                            </div>
                           </td>
 
                         </tr>
@@ -1264,18 +1200,20 @@ function App() {
             <div className="form-title">
 
               <h2>
-                Add Subscription
+                {editingSubscription ? "Edit Subscription" : "Add Subscription"}
               </h2>
 
               <p>
-                Assign a newspaper to a customer.
+                {editingSubscription
+                  ? "Update the customer's newspaper subscription."
+                  : "Assign a newspaper to a customer."}
               </p>
 
             </div>
 
             <form
               className="form"
-              onSubmit={addSubscription}
+              onSubmit={saveSubscription}
             >
 
               <label>
@@ -1283,6 +1221,7 @@ function App() {
 
                 <select
                   name="customer"
+                  defaultValue={editingSubscription?.customer || ""}
                   required
                 >
 
@@ -1315,6 +1254,7 @@ function App() {
 
                 <select
                   name="newspaper"
+                  defaultValue={editingSubscription?.newspaper || ""}
                   required
                 >
 
@@ -1349,6 +1289,7 @@ function App() {
                   type="number"
                   step="0.01"
                   min="0"
+                  defaultValue={editingSubscription?.price || ""}
                   placeholder="Enter daily price"
                   required
                 />
@@ -1363,7 +1304,7 @@ function App() {
                   type="number"
                   min="1"
                   step="1"
-                  defaultValue="1"
+                  defaultValue={editingSubscription?.quantity || 1}
                   placeholder="Number of copies"
                   required
                 />
@@ -1396,6 +1337,7 @@ function App() {
                 <input
                   name="end_date"
                   type="date"
+                  defaultValue={editingSubscription?.end_date || ""}
                 />
 
               </label>
@@ -1417,7 +1359,9 @@ function App() {
                   type="submit"
                   className="primary"
                 >
-                  Save Subscription
+                  {editingSubscription
+                    ? "Update Subscription"
+                    : "Save Subscription"}
                 </button>
 
               </div>
@@ -1635,7 +1579,7 @@ function App() {
                             <select
                               value={delivery.employee || ""}
                               onChange={(e) =>
-                                updateDeliveryEmployee(
+                                handleDeliveryEmployeeUpdate(
                                   delivery.id,
                                   e.target.value
                                 )
@@ -1680,7 +1624,7 @@ function App() {
                               <button
                                 className="delivery-btn delivered"
                                 onClick={() =>
-                                  updateDeliveryStatus(
+                                  handleDeliveryStatusUpdate(
                                     delivery.id,
                                     "delivered"
                                   )
@@ -1692,7 +1636,7 @@ function App() {
                               <button
                                 className="delivery-btn not-delivered"
                                 onClick={() =>
-                                  updateDeliveryStatus(
+                                  handleDeliveryStatusUpdate(
                                     delivery.id,
                                     "not_delivered"
                                   )
@@ -1704,7 +1648,7 @@ function App() {
                               <button
                                 className="delivery-btn paused"
                                 onClick={() =>
-                                  updateDeliveryStatus(
+                                  handleDeliveryStatusUpdate(
                                     delivery.id,
                                     "paused"
                                   )
@@ -1716,7 +1660,7 @@ function App() {
                               <button
                                 className="delivery-btn holiday"
                                 onClick={() =>
-                                  updateDeliveryStatus(
+                                  handleDeliveryStatusUpdate(
                                     delivery.id,
                                     "holiday"
                                   )
