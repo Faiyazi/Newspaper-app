@@ -10,6 +10,7 @@ from rest_framework.response import Response
 
 from .models import (
     Customer,
+    Employee,
     Newspaper,
     Subscription,
     Delivery,
@@ -19,6 +20,7 @@ from .models import (
 
 from .serializers import (
     CustomerSerializer,
+    EmployeeSerializer,
     NewspaperSerializer,
     SubscriptionSerializer,
     DeliverySerializer,
@@ -35,6 +37,14 @@ class CustomerViewSet(viewsets.ModelViewSet):
     queryset = Customer.objects.all().order_by("name")
     serializer_class = CustomerSerializer
 
+
+# =========================================================
+# Employee
+# =========================================================
+
+class EmployeeViewSet(viewsets.ModelViewSet):
+    queryset = Employee.objects.all().order_by("name")
+    serializer_class = EmployeeSerializer
 
 # =========================================================
 # NEWSPAPER
@@ -63,16 +73,17 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
 # =========================================================
 
 class DeliveryViewSet(viewsets.ModelViewSet):
-    queryset = Delivery.objects.select_related(
-        "customer",
-        "subscription__newspaper",
-    ).all().order_by(
-        "-date",
-        "customer__name",
+    queryset = (
+        Delivery.objects
+        .select_related(
+            "customer",
+            "subscription__newspaper",
+            "employee",
+        )
+        .all()
+        .order_by("-date", "customer__name")
     )
-
     serializer_class = DeliverySerializer
-
 
 # =========================================================
 # PAYMENT
@@ -485,7 +496,7 @@ def generate_todays_delivery(request):
             customer=subscription.customer,
             subscription=subscription,
             date=today,
-            quantity=1,
+            quantity=subscription.quantity,
             status="not_delivered",
         )
 

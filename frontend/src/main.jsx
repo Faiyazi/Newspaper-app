@@ -24,6 +24,8 @@ function App() {
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
   const [paymentCustomer, setPaymentCustomer] = useState("");
+  const [employees, setEmployees] = useState([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
 
   const load = async () => {
     try {
@@ -45,6 +47,21 @@ function App() {
       setS(await subscriptionsRes.json());
     } catch (error) {
       console.log("API Error:", error);
+    }
+  };
+
+  const loadEmployees = async () => {
+    setLoadingEmployees(true);
+    try {
+      const response = await fetch(API + "/employees/");
+      if (!response.ok) throw new Error("Unable to load employees");
+      const data = await response.json();
+      setEmployees(Array.isArray(data) ? data : data.results || []);
+    } catch (error) {
+      console.log("Employee API Error:", error);
+      alert("Unable to load employees.");
+    } finally {
+      setLoadingEmployees(false);
     }
   };
 
@@ -87,11 +104,41 @@ function App() {
     if (page === "payments") {
       loadPayments();
     }
+
+    if (page === "employees") {
+      loadEmployees();
+    }
   }, [page]);
 
   const changePage = (newPage) => {
     setPage(newPage);
     setMenuOpen(false);
+  };
+
+  const addEmployee = async (e) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target));
+    data.active = true;
+    if (!data.joining_date) data.joining_date = new Date().toISOString().slice(0, 10);
+    try {
+      const response = await fetch(API + "/employees/", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(data),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        console.log(result);
+        alert("Unable to add employee.");
+        return;
+      }
+      e.target.reset();
+      await loadEmployees();
+      changePage("employees");
+    } catch (error) {
+      console.log(error);
+      alert("Unable to connect to server.");
+    }
   };
 
   const addCustomer = async (e) => {
@@ -463,6 +510,7 @@ function App() {
     ["customers", "👥", "Customers"],
     ["newspapers", "📰", "Newspapers"],
     ["subscriptions", "📦", "Subscriptions"],
+    ["employees", "👨‍💼", "Employees"],
     ["delivery", "🚚", "Today's Delivery"],
     ["billing", "🧾", "Billing"],
     ["payments", "💰", "Payments"],
@@ -1307,6 +1355,69 @@ function App() {
 
             </form>
 
+          </section>
+        )}
+
+        {page === "employees" && (
+          <section>
+            <div className="head">
+              <div>
+                <h2>👨‍💼 Employees</h2>
+                <p className="section-description">Manage employees who deliver newspapers.</p>
+              </div>
+              <div className="delivery-actions">
+                <button onClick={loadEmployees} disabled={loadingEmployees}>🔄 Refresh</button>
+                <button className="primary" onClick={() => changePage("add-employee")}>+ Add Employee</button>
+              </div>
+            </div>
+
+            {loadingEmployees ? (
+              <div className="no-data"><div>⏳</div><h3>Loading employees...</h3></div>
+            ) : employees.length > 0 ? (
+              <div className="table-wrapper">
+                <table>
+                  <thead><tr><th>Name</th><th>Mobile</th><th>Area / Route</th><th>Joining Date</th><th>Status</th></tr></thead>
+                  <tbody>
+                    {employees.map((employee) => (
+                      <tr key={employee.id}>
+                        <td><strong>{employee.name}</strong></td>
+                        <td>{employee.mobile || "-"}</td>
+                        <td>{employee.area || "-"}</td>
+                        <td>{employee.joining_date || "-"}</td>
+                        <td><span className={employee.active ? "status-active" : "status-inactive"}>{employee.active ? "Active" : "Inactive"}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="no-data">
+                <div>👨‍💼</div><h3>No employees yet</h3>
+                <p>Add employees who handle newspaper delivery.</p>
+                <button className="primary" onClick={() => changePage("add-employee")}>+ Add Employee</button>
+              </div>
+            )}
+          </section>
+        )}
+
+        {page === "add-employee" && (
+          <section className="form-section">
+            <div className="form-title">
+              <h2>Add Employee</h2>
+              <p>Enter the delivery employee's information.</p>
+            </div>
+            <form className="form" onSubmit={addEmployee}>
+              <label>Name *<input name="name" type="text" placeholder="Employee name" required /></label>
+              <label>Mobile<input name="mobile" type="tel" placeholder="Mobile number" /></label>
+              <label>Area / Route<input name="area" type="text" placeholder="Delivery area or route" /></label>
+              <label>Address<textarea name="address" placeholder="Employee address" /></label>
+              <label>Joining Date *<input name="joining_date" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required /></label>
+              <label>Notes<textarea name="notes" placeholder="Additional notes" /></label>
+              <div className="form-buttons">
+                <button type="button" onClick={() => changePage("employees")}>Cancel</button>
+                <button type="submit" className="primary">Save Employee</button>
+              </div>
+            </form>
           </section>
         )}
 
