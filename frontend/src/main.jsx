@@ -47,6 +47,8 @@ function App() {
   const [employees, setEmployees] = useState([]);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [editingSubscription, setEditingSubscription] = useState(null);
+  const [customerPaperFilter, setCustomerPaperFilter] = useState("all");
+  const [customerSearch, setCustomerSearch] = useState("");
 
   const load = async () => {
     try {
@@ -266,14 +268,14 @@ function App() {
         current.map((delivery) =>
           delivery.id === deliveryId
             ? {
-                ...delivery,
-                employee: employeeId ? Number(employeeId) : null,
-                employee_name:
-                  employees.find(
-                    (employee) =>
-                      Number(employee.id) === Number(employeeId)
-                  )?.name || "-",
-              }
+              ...delivery,
+              employee: employeeId ? Number(employeeId) : null,
+              employee_name:
+                employees.find(
+                  (employee) =>
+                    Number(employee.id) === Number(employeeId)
+                )?.name || "-",
+            }
             : delivery
         )
       );
@@ -448,6 +450,75 @@ function App() {
     return labels[status] || status || "-";
   };
 
+  const getCustomerSubscriptions = (customerId) => {
+    return subscriptions.filter(
+      (subscription) =>
+        Number(subscription.customer) === Number(customerId) &&
+        subscription.status === "active"
+    );
+  };
+
+  const getCustomerPaperSummary = (customerId) => {
+    const customerSubscriptions =
+      getCustomerSubscriptions(customerId);
+
+    const grouped = customerSubscriptions.reduce(
+      (result, subscription) => {
+        const newspaper = newspapers.find(
+          (item) =>
+            Number(item.id) === Number(subscription.newspaper)
+        );
+
+        const name =
+          subscription.newspaper_name ||
+          newspaper?.name ||
+          `Newspaper #${subscription.newspaper}`;
+
+        result[name] =
+          (result[name] || 0) +
+          Number(subscription.quantity || 1);
+
+        return result;
+      },
+      {}
+    );
+
+    return Object.entries(grouped).map(
+      ([name, quantity]) => `${name} ×${quantity}`
+    );
+  };
+
+  const getCustomerTotalPapers = (customerId) => {
+    return getCustomerSubscriptions(customerId).reduce(
+      (total, subscription) =>
+        total + Number(subscription.quantity || 1),
+      0
+    );
+  };
+
+  const filteredCustomers = customers.filter((customer) => {
+    const totalPapers =
+      getCustomerTotalPapers(customer.id);
+
+    const matchesFilter =
+      customerPaperFilter === "all" ||
+      (customerPaperFilter === "multiple" &&
+        totalPapers > 1) ||
+      (customerPaperFilter === "single" &&
+        totalPapers <= 1);
+
+    const search =
+      customerSearch.trim().toLowerCase();
+
+    const matchesSearch =
+      !search ||
+      customer.name?.toLowerCase().includes(search) ||
+      customer.mobile?.toLowerCase().includes(search) ||
+      customer.area?.toLowerCase().includes(search);
+
+    return matchesFilter && matchesSearch;
+  });
+
   const nav = [
     ["dashboard", "🏠", "Dashboard"],
     ["customers", "👥", "Customers"],
@@ -557,12 +628,12 @@ function App() {
               {page === "dashboard"
                 ? "Good Evening 👋"
                 : page === "delivery"
-                ? "Today's Delivery"
-                : page === "add"
-                ? "Add Customer"
-                : page === "add-subscription"
-                ? "Add Subscription"
-                : page.replace("-", " ")}
+                  ? "Today's Delivery"
+                  : page === "add"
+                    ? "Add Customer"
+                    : page === "add-subscription"
+                      ? "Add Subscription"
+                      : page.replace("-", " ")}
             </h1>
 
             <p>
@@ -676,53 +747,123 @@ function App() {
             <div className="head">
 
               <div>
-
                 <h2>Customers</h2>
 
                 <p className="section-description">
                   Manage your newspaper customers.
                 </p>
-
               </div>
 
               <button
                 className="primary"
-                onClick={() =>
-                  changePage("add")
-                }
+                onClick={() => changePage("add")}
               >
                 + Add Customer
               </button>
 
             </div>
 
-            {customers.length > 0 ? (
+            {customers.length > 0 && (
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "12px",
+                  flexWrap: "wrap",
+                  marginBottom: "20px",
+                  alignItems: "center",
+                }}
+              >
+
+                <input
+                  type="search"
+                  value={customerSearch}
+                  onChange={(e) =>
+                    setCustomerSearch(e.target.value)
+                  }
+                  placeholder="Search customer, mobile or area..."
+                  style={{
+                    flex: "1 1 280px",
+                    minWidth: "240px",
+                    padding: "10px 12px",
+                    borderRadius: "8px",
+                    border: "1px solid #d1d5db",
+                  }}
+                />
+
+                <select
+                  value={customerPaperFilter}
+                  onChange={(e) =>
+                    setCustomerPaperFilter(e.target.value)
+                  }
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: "8px",
+                    border: "1px solid #d1d5db",
+                    background: "#fff",
+                  }}
+                >
+
+                  <option value="all">
+                    All Customers
+                  </option>
+
+                  <option value="multiple">
+                    Multiple Papers
+                  </option>
+
+                  <option value="single">
+                    Single / No Paper
+                  </option>
+
+                </select>
+
+                <span style={{ color: "#6b7280" }}>
+                  Showing {filteredCustomers.length} of{" "}
+                  {customers.length}
+                </span>
+
+              </div>
+
+            )}
+
+            {filteredCustomers.length > 0 ? (
 
               <div className="table-wrapper">
 
                 <table>
 
                   <thead>
+
                     <tr>
                       <th>Name</th>
                       <th>Mobile</th>
                       <th>Area</th>
+                      <th>Papers</th>
+                      <th>Total/Day</th>
                       <th>Status</th>
-                      <th>Actions</th>
                     </tr>
+
                   </thead>
 
                   <tbody>
 
-                    {customers.map(
-                      (customer) => (
+                    {filteredCustomers.map((customer) => {
 
-                        <tr
-                          key={customer.id}
-                        >
+                      const paperSummary =
+                        getCustomerPaperSummary(customer.id);
+
+                      const totalPapers =
+                        getCustomerTotalPapers(customer.id);
+
+                      return (
+
+                        <tr key={customer.id}>
 
                           <td>
-                            {customer.name}
+                            <strong>
+                              {customer.name}
+                            </strong>
                           </td>
 
                           <td>
@@ -731,6 +872,46 @@ function App() {
 
                           <td>
                             {customer.area || "-"}
+                          </td>
+
+                          <td>
+
+                            {paperSummary.length > 0 ? (
+
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "4px",
+                                }}
+                              >
+
+                                {paperSummary.map((paper) => (
+                                  <span key={paper}>
+                                    {paper}
+                                  </span>
+                                ))}
+
+                              </div>
+
+                            ) : (
+
+                              <span
+                                style={{
+                                  color: "#9ca3af",
+                                }}
+                              >
+                                No active subscription
+                              </span>
+
+                            )}
+
+                          </td>
+
+                          <td>
+                            <strong>
+                              {totalPapers}
+                            </strong>
                           </td>
 
                           <td>
@@ -751,8 +932,9 @@ function App() {
 
                         </tr>
 
-                      )
-                    )}
+                      );
+
+                    })}
 
                   </tbody>
 
@@ -767,21 +949,27 @@ function App() {
                 <div>👥</div>
 
                 <h3>
-                  No customers yet
+                  {customers.length > 0
+                    ? "No customers match your filter"
+                    : "No customers yet"}
                 </h3>
 
                 <p>
-                  Add your first customer.
+                  {customers.length > 0
+                    ? "Try a different search or filter."
+                    : "Add your first customer."}
                 </p>
 
-                <button
-                  className="primary"
-                  onClick={() =>
-                    changePage("add")
-                  }
-                >
-                  + Add Customer
-                </button>
+                {customers.length === 0 && (
+
+                  <button
+                    className="primary"
+                    onClick={() => changePage("add")}
+                  >
+                    + Add Customer
+                  </button>
+
+                )}
 
               </div>
 
@@ -1105,7 +1293,7 @@ function App() {
                             <span
                               className={
                                 subscription.status ===
-                                "active"
+                                  "active"
                                   ? "status-active"
                                   : "status-inactive"
                               }
