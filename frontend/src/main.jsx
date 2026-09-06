@@ -190,6 +190,7 @@ function App() {
     data.customer = Number(data.customer);
     data.newspaper = Number(data.newspaper);
     data.price = Number(data.price);
+    data.quantity = Math.max(1, Number(data.quantity || 1));
     data.status = "active";
 
     if (!data.end_date) {
@@ -253,6 +254,50 @@ function App() {
       alert("Unable to connect to server.");
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const updateDeliveryEmployee = async (deliveryId, employeeId) => {
+    try {
+      const response = await fetch(
+        API + `/deliveries/${deliveryId}/`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            employee: employeeId ? Number(employeeId) : null,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.log(result);
+        alert("Unable to assign employee.");
+        return;
+      }
+
+      setDeliveries((current) =>
+        current.map((delivery) =>
+          delivery.id === deliveryId
+            ? {
+                ...delivery,
+                employee: employeeId ? Number(employeeId) : null,
+                employee_name:
+                  employees.find(
+                    (employee) =>
+                      Number(employee.id) === Number(employeeId)
+                  )?.name || "-",
+              }
+            : delivery
+        )
+      );
+    } catch (error) {
+      console.log(error);
+      alert("Unable to connect to server.");
     }
   };
 
@@ -1111,6 +1156,7 @@ function App() {
                       <th>Customer</th>
                       <th>Newspaper</th>
                       <th>Price</th>
+                      <th>Qty</th>
                       <th>Start Date</th>
                       <th>End Date</th>
                       <th>Status</th>
@@ -1139,6 +1185,10 @@ function App() {
 
                           <td>
                             ₹{subscription.price}
+                          </td>
+
+                          <td>
+                            {subscription.quantity || 1}
                           </td>
 
                           <td>
@@ -1302,6 +1352,25 @@ function App() {
                   placeholder="Enter daily price"
                   required
                 />
+
+              </label>
+
+              <label>
+                Quantity *
+
+                <input
+                  name="quantity"
+                  type="number"
+                  min="1"
+                  step="1"
+                  defaultValue="1"
+                  placeholder="Number of copies"
+                  required
+                />
+
+                <small style={{ color: "#6b7280" }}>
+                  Number of copies of this newspaper
+                </small>
 
               </label>
 
@@ -1532,6 +1601,7 @@ function App() {
                       <th>Customer</th>
                       <th>Newspaper</th>
                       <th>Qty</th>
+                      <th>Employee</th>
                       <th>Status</th>
                       <th>Actions</th>
                     </tr>
@@ -1559,6 +1629,36 @@ function App() {
 
                           <td>
                             {delivery.quantity}
+                          </td>
+
+                          <td>
+                            <select
+                              value={delivery.employee || ""}
+                              onChange={(e) =>
+                                updateDeliveryEmployee(
+                                  delivery.id,
+                                  e.target.value
+                                )
+                              }
+                              style={{
+                                minWidth: "150px",
+                                padding: "8px 10px",
+                                borderRadius: "8px",
+                                border: "1px solid #d1d5db",
+                              }}
+                            >
+                              <option value="">Unassigned</option>
+                              {employees
+                                .filter((employee) => employee.active)
+                                .map((employee) => (
+                                  <option
+                                    key={employee.id}
+                                    value={employee.id}
+                                  >
+                                    {employee.name}
+                                  </option>
+                                ))}
+                            </select>
                           </td>
 
                           <td>
